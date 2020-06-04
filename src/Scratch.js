@@ -22,7 +22,6 @@
 //
 // This is the top-level application.
 
-//package {
 import blocks.*;
 
 import com.adobe.utils.StringUtil;
@@ -1573,4 +1572,3 @@ public class Scratch extends Sprite {
 		externalCall.apply(this, args);
 	}
 }
-//}
