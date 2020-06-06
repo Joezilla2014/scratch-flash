@@ -21,7 +21,7 @@
 // John Maloney, September 2009
 //
 // This is the top-level application.
-import './util/phaser.min.js';
+
 import './blocks/*';
 
 import './blocks/StringUtil.js';
@@ -46,31 +46,31 @@ import '.../phaser/src/geom/rectangle/index.js';
 //import flash.text.*;
 import '.../phaser/src/utils/index.js';
 
-import interpreter.*;
+import './interpreter/*';
 
-import logging.Log;
-import logging.LogEntry;
-import logging.LogLevel;
+import './logging/Log.js';
+import './logging/LogEntry.js';
+import './logging/LogLevel.js';
 
-import mx.utils.URLUtil;
+//import mx.utils.URLUtil;
 
-import render3d.DisplayObjectContainerIn3D;
+import './render3d/DisplayObjectContainerIn3D.js';
 
-import scratch.*;
+import './scratch/*';
 
-import svgeditor.tools.SVGTool;
+import './svgeditor/tools/SVGTool.js';
 
-import translation.*;
+import './translation/*';
 
-import ui.*;
-import ui.media.*;
-import ui.parts.*;
+import './ui/*';
+import './ui/media/*';
+import './ui/parts/*';
 
-import uiwidgets.*;
+import './uiwidgets/*';
 
-import util.*;
+import './util/*';
 
-import watchers.ListWatcher;
+import './watchers/ListWatcher.js';
 
 public class Scratch extends Sprite {
 	// Version
