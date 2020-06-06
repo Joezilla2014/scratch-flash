@@ -22,7 +22,6 @@
 //
 // BlockShape handles drawing and resizing of a block shape.
 
-package blocks {
 	import flash.display.*;
 	import flash.filters.*;
 
@@ -346,4 +345,4 @@ public class BlockShape extends Shape {
 		graphics.curveTo(cx, cy, p2x, p2y);
 	}
 
-}}
+}
