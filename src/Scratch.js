@@ -33,7 +33,7 @@ import '.../phaser/src/display/index.js';
 import '.../phaser/src/events/index.js';
 //import flash.external.ExternalInterface;
 import '.../phaser/src/geom/point/index.js';
-import '.../phaser/src/geom/rectangle/index.js;
+import '.../phaser/src/geom/rectangle/index.js';
 //import flash.net.FileFilter;
 //import flash.net.FileReference;
 //import flash.net.FileReferenceList;
