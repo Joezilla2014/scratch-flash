@@ -24,7 +24,6 @@
 // The array structure format captures the meaning of scripts in a compact form that
 // is independent of the internal representation and is easy to convert to/from JSON.
 
-package blocks {
 	import scratch.*;
 	import util.*;
 	import translation.*;
@@ -307,4 +306,4 @@ public class BlockIO {
 		}
 	}
 
-}}
+}
