@@ -21,8 +21,7 @@
 // John Maloney, September 2009
 //
 // This is the top-level application.
-
-import blocks.*;
+import './blocks/*';
 
 import com.adobe.utils.StringUtil;
 
