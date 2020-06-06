@@ -23,10 +23,10 @@
 // This is the top-level application.
 import './blocks/*';
 
-import com.adobe.utils.StringUtil;
+import './blocks/StringUtil.js';
 
-import extensions.ExtensionDevManager;
-import extensions.ExtensionManager;
+import './extensions/ExtensionDevManager.js';
+import './extensions/ExtensionManager.js';
 
 import flash.display.*;
 import flash.events.*;
