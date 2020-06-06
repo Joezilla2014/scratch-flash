@@ -30,21 +30,21 @@ import './extensions/ExtensionDevManager.js';
 import './extensions/ExtensionManager.js';
 
 import '.../phaser/src/display/index.js';
-import flash.events.*;
-import flash.external.ExternalInterface;
-import flash.geom.Point;
-import flash.geom.Rectangle;
-import flash.net.FileFilter;
-import flash.net.FileReference;
-import flash.net.FileReferenceList;
-import flash.net.LocalConnection;
-import flash.net.SharedObject;
-import flash.net.URLLoader;
-import flash.net.URLLoaderDataFormat;
-import flash.net.URLRequest;
-import flash.system.*;
-import flash.text.*;
-import flash.utils.*;
+import '.../phaser/src/events/index.js';
+//import flash.external.ExternalInterface;
+import '.../phaser/src/geom/point/index.js';
+import '.../phaser/src/geom/rectangle/index.js;
+//import flash.net.FileFilter;
+//import flash.net.FileReference;
+//import flash.net.FileReferenceList;
+//import flash.net.LocalConnection;
+//import flash.net.SharedObject;
+//import flash.net.URLLoader;
+//import flash.net.URLLoaderDataFormat;
+//import flash.net.URLRequest;
+//import flash.system.*;
+//import flash.text.*;
+import '.../phaser/src/utils/index.js';
 
 import interpreter.*;
 
