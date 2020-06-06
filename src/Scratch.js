@@ -21,6 +21,7 @@
 // John Maloney, September 2009
 //
 // This is the top-level application.
+import './util/phaser.min.js';
 import './blocks/*';
 
 import './blocks/StringUtil.js';
@@ -28,7 +29,7 @@ import './blocks/StringUtil.js';
 import './extensions/ExtensionDevManager.js';
 import './extensions/ExtensionManager.js';
 
-import flash.display.*;
+import '.../phaser/src/display/index.js';
 import flash.events.*;
 import flash.external.ExternalInterface;
 import flash.geom.Point;
