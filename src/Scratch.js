@@ -72,7 +72,7 @@ import './util/*';
 
 import './watchers/ListWatcher.js';
 
-	public class Scratch extends Sprite {
+class Scratch extends Sprite {
 	// Version
 	public static const versionString:String = 'v461.2';
 	public static var app:Scratch; // static reference to the app, used for debugging
