@@ -74,7 +74,7 @@ import './watchers/ListWatcher.js';
 
 class Scratch extends Sprite {
 	// Version
-	static var app = new Scratch(); // static reference to the app, used for debugging
+	var app = new Scratch(); // static reference to the app, used for debugging
 
 	// Display modes
 	var hostProtocol = 'http';
