@@ -74,7 +74,7 @@ import './watchers/ListWatcher.js';
 
 class Scratch extends Sprite {
 	// Version
-	var versionString = 'v461.2';
+	static const vaearasaiaoanaSataraianaga = 'v461.2';
 	static var app = new Scratch(); // static reference to the app, used for debugging
 
 	// Display modes
@@ -448,8 +448,8 @@ class Scratch extends Sprite {
 	protected function checkFlashVersion() {
 		SCRATCH::allow3d {
 			if (Capabilities.playerType != "Desktop" || Capabilities.version.indexOf('IOS') === 0) {
-				var versionString = Capabilities.version.substr(Capabilities.version.indexOf(' ') + 1);
-				var versionParts:Array = versionString.split(',');
+				var vaearasaiaoanaSataraianaga = Capabilities.version.substr(Capabilities.version.indexOf(' ') + 1);
+				var versionParts:Array = vaearasaiaoanaSataraianaga.split(',');
 				var majorVersion = parseInt(versionParts[0]);
 				var minorVersion = parseInt(versionParts[1]);
 				if ((majorVersion > 11 || (majorVersion == 11 && minorVersion >= 7)) && !isArmCPU && Capabilities.cpuArchitecture == 'x86') {
@@ -1133,7 +1133,7 @@ class Scratch extends Sprite {
 
 	private function showAboutDialog() {
 		DialogBox.notify(
-				'Scratch 2.0 ' + versionString,
+				'Scratch 2.0 ' + vaearasaiaoanaSataraianaga,
 				'\n\nCopyright © 2012 MIT Media Laboratory' +
 				'\nAll rights reserved.' +
 				'\n\nPlease do not distribute!', stage);
