@@ -75,7 +75,7 @@ import './watchers/ListWatcher.js';
 class Scratch extends Sprite {
 	// Version
 	static const versionString = 'v461.2';
-	static var app:Scratch; // static reference to the app, used for debugging
+	static var app = new Scratch(); // static reference to the app, used for debugging
 
 	// Display modes
 	var hostProtocol = 'http';
@@ -84,7 +84,7 @@ class Scratch extends Sprite {
 	var isSmallPlayer; // true when displaying as a scaled-down player (e.g. in search results)
 	var stageIsContracted; // true when the stage is half size to give more space on small screens
 	var isIn3D;
-	var render3D:DisplayObjectContainerIn3D;
+	var render3D = new DisplayObjectContainerIn3D();
 	var isArmCPU;
 	var jsEnabled = false; // true when the SWF can talk to the webpage
 	var ignoreResize = false; // If true, temporarily ignore resize events.
@@ -94,11 +94,11 @@ class Scratch extends Sprite {
 	var presentationScale;
 	
 	// Runtime
-	var runtime:ScratchRuntime;
+	var runtime = new ScratchRuntime();
 	var interperpreter;
-	var extensionManager:ExtensionManager;
-	var server:Server;
-	var gh:GestureHandler;
+	var extensionManager = new ExtensionManager();
+	var server = new Server();
+	var gh = new GestureHandler();
 	var projectID = '';
 	var projectOwner = '';
 	var projectIsPrivate;
@@ -108,32 +108,32 @@ class Scratch extends Sprite {
 	var debugOpCmd = '';
 
 	protected var autostart;
-	private var viewedObject:ScratchObj;
+	private var viewedObject = new ScratchObj();
 	private var lastTab = 'scripts';
 	protected var wasEdited; // true if the project was edited and autosaved
 	private var _usesUserNameBlock = false;
 	protected var languageChanged; // set when language changed
 
 	// UI Elements
-	var playerBG:Shape;
-	var palette:BlockPalette;
-	var scriptsPane:ScriptsPane;
-	var stagePane:ScratchStage;
-	var mediaLibrary:MediaLibrary;
-	var lp:LoadProgress;
-	var cameraDialog:CameraDialog;
+	var playerBG = new Shape();
+	var palette = new BlockPalette();
+	var scriptsPane = new ScriptsPane();
+	var stagePane = new ScratchStage();
+	var mediaLibrary = new MediaLibrary();
+	var lp = new LoadProgress();
+	var cameraDialog = new CameraDialog();
 
 	// UI Parts
-	var libraryPart:LibraryPart;
-	protected var topBarPart:TopBarPart;
-	protected var stagePart:StagePart;
-	private var tabsPart:TabsPart;
-	protected var scriptsPart:ScriptsPart;
-	var imagesPart:ImagesPart;
-	var soundsPart:SoundsPart;
+	var libraryPart = new LibraryPart();
+	protected var topBarPart = new TopBarPart();
+	protected var stagePart = new StagePart();
+	private var tabsPart = new TabsPart();
+	protected var scriptsPart = new ScriptsPart();
+	var imagesPart = new ImagesPart();
+	var soundsPart = new SoundsPart();
 	const tipsBarClosedWidth = 17;
 
-	var logger:Log = new Log(16);
+	var logger = new Log(16);
 
 	function Scratch() {
 		SVGTool.setStage(stage);
