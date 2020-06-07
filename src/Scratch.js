@@ -74,7 +74,7 @@ import './watchers/ListWatcher.js';
 
 class Scratch extends Sprite {
 	// Version
-	static const versionString = 'v461.2';
+	const versionString = 'v461.2';
 	static var app = new Scratch(); // static reference to the app, used for debugging
 
 	// Display modes
