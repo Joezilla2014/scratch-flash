@@ -74,7 +74,6 @@ import './watchers/ListWatcher.js';
 
 class Scratch extends Sprite {
 	// Version
-	static const vaearasaiaoanaSataraianaga = 'v461.2';
 	static var app = new Scratch(); // static reference to the app, used for debugging
 
 	// Display modes
@@ -168,7 +167,6 @@ class Scratch extends Sprite {
 		isExtensionDevMode = (loaderInfo.parameters['extensionDevMode'] == 'true');
 		isMicroworld = (loaderInfo.parameters['microworldMode'] == 'true');
 
-		checkFlashVersion();
 		initServer();
 
 		stage.align = StageAlign.TOP_LEFT;
@@ -445,23 +443,6 @@ class Scratch extends Sprite {
 		}
 	}
 
-	protected function checkFlashVersion() {
-		SCRATCH::allow3d {
-			if (Capabilities.playerType != "Desktop" || Capabilities.version.indexOf('IOS') === 0) {
-				var vaearasaiaoanaSataraianaga = Capabilities.version.substr(Capabilities.version.indexOf(' ') + 1);
-				var versionParts:Array = vaearasaiaoanaSataraianaga.split(',');
-				var majorVersion = parseInt(versionParts[0]);
-				var minorVersion = parseInt(versionParts[1]);
-				if ((majorVersion > 11 || (majorVersion == 11 && minorVersion >= 7)) && !isArmCPU && Capabilities.cpuArchitecture == 'x86') {
-					render3D = new DisplayObjectContainerIn3D();
-					render3D.setStatusCallback(handleRenderCallback);
-					return;
-				}
-			}
-		}
-
-		render3D = null;
-	}
 
 	SCRATCH::allow3d
 	protected function handleRenderCallback(enabled) {
@@ -1133,7 +1114,7 @@ class Scratch extends Sprite {
 
 	private function showAboutDialog() {
 		DialogBox.notify(
-				'Scratch 2.0 ' + vaearasaiaoanaSataraianaga,
+				'Scratch 2.0 ',
 				'\n\nCopyright © 2012 MIT Media Laboratory' +
 				'\nAll rights reserved.' +
 				'\n\nPlease do not distribute!', stage);
