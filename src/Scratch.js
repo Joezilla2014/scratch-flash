@@ -21,7 +21,7 @@
 // John Maloney, September 2009
 //
 // This is the top-level application.
-export {
+export Scratch {
 import './blocks/*';
 
 import './blocks/StringUtil.js';
