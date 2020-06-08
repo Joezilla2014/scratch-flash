@@ -72,9 +72,9 @@ import './util/*';
 
 import './watchers/ListWatcher.js';
 
-class Scratch extends Sprite {
+default class Scratch extends Sprite {
 	// Version
-	Sprite aapapa = null; // static reference to the app, used for debugging
+	var app = null; // static reference to the app, used for debugging
 
 	// Display modes 
 	var hostProtocol = 'http';
