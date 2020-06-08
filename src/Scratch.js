@@ -21,6 +21,7 @@
 // John Maloney, September 2009
 //
 // This is the top-level application.
+'use strict';
 package Scratch {
 import './blocks/*';
 
