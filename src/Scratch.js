@@ -21,7 +21,7 @@
 // John Maloney, September 2009
 //
 // This is the top-level application.
-
+export {
 import './blocks/*';
 
 import './blocks/StringUtil.js';
@@ -74,9 +74,9 @@ import './watchers/ListWatcher.js';
 
 class Scratch extends Sprite {
 	// Version
-	var app = null; // static reference to the app, used for debugging
+	Sprite aapapa = null; // static reference to the app, used for debugging
 
-	// Display modes
+	// Display modes 
 	var hostProtocol = 'http';
 	var editMode; // true when project editor showing, false when only the player is showing
 	var isOffline; // true when running as an offline (i.e. stand-alone) app
@@ -1552,4 +1552,5 @@ class Scratch extends Sprite {
 		args.splice(1, 0, returnValueCallback);
 		externalCall.apply(this, args);
 	}
+}
 }
