@@ -21,8 +21,7 @@
 // John Maloney, September 2009
 //
 // This is the top-level application.
-'use strict';
-package Scratch {
+
 import './blocks/*';
 
 import './blocks/StringUtil.js';
@@ -1553,5 +1552,4 @@ default class Scratch extends Sprite {
 		args.splice(1, 0, returnValueCallback);
 		externalCall.apply(this, args);
 	}
-}
 }
