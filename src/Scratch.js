@@ -78,34 +78,34 @@ class Scratch extends Sprite {
 	app = new Scratch(); // static reference to the app, used for debugging
 
 	// Display modes 
-	var hostProtocol = 'http';
-	var editMode; // true when project editor showing, false when only the player is showing
-	var isOffline; // true when running as an offline (i.e. stand-alone) app
-	var isSmallPlayer; // true when displaying as a scaled-down player (e.g. in search results)
-	var stageIsContracted; // true when the stage is half size to give more space on small screens
-	var isIn3D;
-	var render3D = new DisplayObjectContainerIn3D();
-	var isArmCPU;
-	var jsEnabled = false; // true when the SWF can talk to the webpage
-	var ignoreResize = false; // If true, temporarily ignore resize events.
-	var isExtensionDevMode = false; // If true, run in extension development mode (as on ScratchX)
-	var isMicroworld = false;
+	String hostProtocol = 'http';
+	Boolean editMode; // true when project editor showing, false when only the player is showing
+	Boolean isOffline; // true when running as an offline (i.e. stand-alone) app
+	Boolean isSmallPlayer; // true when displaying as a scaled-down player (e.g. in search results)
+	Boolean stageIsContracted; // true when the stage is half size to give more space on small screens
+	Boolean isIn3D;
+	render3D = new DisplayObjectContainerIn3D();
+	Boolean isArmCPU;
+	jsEnabled = false; // true when the SWF can talk to the webpage
+	ignoreResize = false; // If true, temporarily ignore resize events.
+	isExtensionDevMode = false; // If true, run in extension development mode (as on ScratchX)
+	isMicroworld = false;
 
-	var presentationScale;
+	Number presentationScale;
 	
 	// Runtime
-	var runtime = new ScratchRuntime();
-	var interperpreter;
-	var extensionManager = new ExtensionManager();
-	var server = new Server();
-	var gh = new GestureHandler();
-	var projectID = '';
-	var projectOwner = '';
-	var projectIsPrivate;
-	var oldWebsiteURL = '';
-	var loadInProgress;
-	var debugOps = false;
-	var debugOpCmd = '';
+	runtime = new ScratchRuntime();
+	interp = new Interpreter();
+	extensionManager = new ExtensionManager();
+	server = new Server();
+	gh = new GestureHandler();
+	String projectID = '';
+	String projectOwner = '';
+	Boolean projectIsPrivate;
+	String oldWebsiteURL = '';
+	Boolean loadInProgress;
+	Boolean debugOps = false;
+	String debugOpCmd = '';
 
 	protected var autostart;
 	private var viewedObject = new ScratchObj();
