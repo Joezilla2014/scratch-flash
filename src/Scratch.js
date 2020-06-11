@@ -286,7 +286,7 @@ class Scratch extends Sprite {
 		if (!isExtensionDevMode) return;
 
 		url = '';
-		urlArray = new Array(urlOrArray as Array);
+		urlArray = new Array(urlOrArray);
 		if (urlArray) {
 			urlCount = urlArray.length;
 			extensionURLs = new Array();
