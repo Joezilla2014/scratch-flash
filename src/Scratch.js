@@ -78,7 +78,7 @@ class Scratch extends Sprite {
 	app = new Scratch(); // static reference to the app, used for debugging
 
 	// Display modes 
-	String hostProtocol = 'http';
+	hostProtocol = 'http';
 	Boolean editMode; // true when project editor showing, false when only the player is showing
 	Boolean isOffline; // true when running as an offline (i.e. stand-alone) app
 	Boolean isSmallPlayer; // true when displaying as a scaled-down player (e.g. in search results)
@@ -99,13 +99,13 @@ class Scratch extends Sprite {
 	extensionManager = new ExtensionManager();
 	server = new Server();
 	gh = new GestureHandler();
-	String projectID = '';
-	String projectOwner = '';
+	projectID = '';
+	projectOwner = '';
 	Boolean projectIsPrivate;
-	String oldWebsiteURL = '';
+	oldWebsiteURL = '';
 	Boolean loadInProgress;
-	Boolean debugOps = false;
-	String debugOpCmd = '';
+	debugOps = false;
+	debugOpCmd = '';
 
 	protected var autostart;
 	private var viewedObject = new ScratchObj();
