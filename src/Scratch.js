@@ -131,7 +131,7 @@ class Scratch extends Sprite {
 	scriptsPart = new ScriptsPart();
 	imagesPart = new ImagesPart();
 	soundsPart = new SoundsPart();
-	const tipsBarClosedWidth = 17;
+	tipsBarClosedWidth = 17;
 
 	logger = new Log(16);
 
