@@ -135,7 +135,7 @@ class Scratch extends Sprite {
 
 	logger = new Log(16);
 
-	function Scratch() {
+	Scratch() {
 		SVGTool.setStage(stage);
 		loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, uncaughtErrorHandler);
 		app = this;
