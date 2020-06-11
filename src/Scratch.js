@@ -107,33 +107,33 @@ class Scratch extends Sprite {
 	debugOps = new Boolean(false);
 	debugOpCmd = '';
 
-	protected var autostart;
-	private var viewedObject = new ScratchObj();
-	private var lastTab = 'scripts';
-	protected var wasEdited; // true if the project was edited and autosaved
-	private var _usesUserNameBlock = false;
-	protected var languageChanged; // set when language changed
+	autostart = new Boolean();
+	viewedObject = new ScratchObj();
+	lastTab = 'scripts';
+	wasEdited = new Boolean(); // true if the project was edited and autosaved
+	_usesUserNameBlock = new Boolean(false);
+	languageChanged = new Boolean(); // set when language changed
 
 	// UI Elements
-	var playerBG = new Shape();
-	var palette = new BlockPalette();
-	var scriptsPane = new ScriptsPane();
-	var stagePane = new ScratchStage();
-	var mediaLibrary = new MediaLibrary();
-	var lp = new LoadProgress();
-	var cameraDialog = new CameraDialog();
+	playerBG = new Shape();
+	palette = new BlockPalette();
+	scriptsPane = new ScriptsPane();
+	stagePane = new ScratchStage();
+	mediaLibrary = new MediaLibrary();
+	lp = new LoadProgress();
+	cameraDialog = new CameraDialog();
 
 	// UI Parts
-	var libraryPart = new LibraryPart();
-	protected var topBarPart = new TopBarPart();
-	protected var stagePart = new StagePart();
-	private var tabsPart = new TabsPart();
-	protected var scriptsPart = new ScriptsPart();
-	var imagesPart = new ImagesPart();
-	var soundsPart = new SoundsPart();
+	libraryPart = new LibraryPart();
+	topBarPart = new TopBarPart();
+	stagePart = new StagePart();
+	tabsPart = new TabsPart();
+	scriptsPart = new ScriptsPart();
+	imagesPart = new ImagesPart();
+	soundsPart = new SoundsPart();
 	const tipsBarClosedWidth = 17;
 
-	var logger = new Log(16);
+	logger = new Log(16);
 
 	function Scratch() {
 		SVGTool.setStage(stage);
