@@ -382,7 +382,7 @@ class Scratch extends Sprite {
 		return isOffline || isExtensionDevMode;
 	}
 
-	getMediaLibrary(type, whenDone = new Function()) extends MediaLibrary {
+	getMediaLibrary(type, whenDone) {
 		return new MediaLibrary(this, type, whenDone);
 	}
 
@@ -697,7 +697,7 @@ class Scratch extends Sprite {
 		}
 	}
 
-	resetPlugin(whenDone = new Function()) {
+	resetPlugin(whenDone) {
 		if (jsEnabled) {
 			externalCall('ScratchExtensions.resetPlugin');
 		}
@@ -706,7 +706,7 @@ class Scratch extends Sprite {
 		}
 	}
 
-	function step(e = new Event()) {
+	function step(e) {
 		// Step the runtime system and all UI components.
 		CachedTimer.clearCachedTimer();
 		gh.step();
@@ -730,7 +730,7 @@ class Scratch extends Sprite {
 		stagePart.threadStarted()
 	}
 
-	selectSprite(obj = new ScratchObj()) {
+	selectSprite(obj) {
 		if (isShowing(imagesPart)) imagesPart.editor.shutdown();
 		if (isShowing(soundsPart)) soundsPart.editor.shutdown();
 		viewedObject = obj;
@@ -777,7 +777,7 @@ class Scratch extends Sprite {
 		if (saveNeeded) setSaveNeeded(true); // save project when switching tabs, if needed (but NOT while loading!)
 	}
 
-	installStage(newStage:ScratchStage) {
+	installStage(newStage) {
 		var showGreenflagOverlay = shouldShowGreenFlag();
 		stagePart.installStage(newStage, showGreenflagOverlay);
 		selectSprite(newStage);
@@ -805,11 +805,11 @@ class Scratch extends Sprite {
 		addChild(tabsPart);
 	}
 
-	getStagePart():StagePart {
+	getStagePart() {
 		return new StagePart(this);
 	}
 
-	getLibraryPart():LibraryPart {
+	getLibraryPart() {
 		return new LibraryPart(this);
 	}
 
@@ -847,19 +847,19 @@ class Scratch extends Sprite {
 		stagePart.refresh();
 	}
 
-	hide(obj:DisplayObject) {
+	hide(obj) {
 		if (obj.parent) obj.parent.removeChild(obj)
 	}
 
-	show(obj:DisplayObject) {
+	show(obj) {
 		addChild(obj)
 	}
 
-	isShowing(obj:DisplayObject) {
+	isShowing(obj) {
 		return obj.parent != null
 	}
 
-	onResize(e:Event) {
+	onResize(e) {
 		if (!ignoreResize) fixLayout();
 	}
 
@@ -953,7 +953,7 @@ class Scratch extends Sprite {
 	}
 
 	drawBG() {
-		var g:Graphics = playerBG.graphics;
+		g = new Graphics(playerBG.graphics);
 		g.clear();
 		g.beginFill(0);
 		g.drawRect(0, 0, stage.stageWidth, stage.stageHeight);
@@ -991,7 +991,7 @@ class Scratch extends Sprite {
 		}
 	}
 
-	logoButtonPressed(b:IconButton) {
+	logoButtonPressed(b) {
 		if (isExtensionDevMode) {
 			externalCall('showPage', null, 'home');
 		}
@@ -1024,7 +1024,7 @@ class Scratch extends Sprite {
 	// -----------------------------
 	// Menus
 	//------------------------------
-	showFileMenu(b:*) {
+	showFileMenu(b) {
 		var m:Menu = new Menu(null, 'File', CSS.topBarColor(), 28);
 		m.addItem('New', createNewProject);
 		m.addLine();
@@ -1035,11 +1035,11 @@ class Scratch extends Sprite {
 		m.showOnStage(stage, b.x, topBarPart.bottom() - 1);
 	}
 	
-	stopVideo(b:*) {
+	stopVideo(b) {
 		runtime.stopVideo();
 	}
 
-	addFileMenuItems(b:*, m:Menu) {
+	addFileMenuItems(b, m) {
 		m.addItem('Load Project', runtime.selectProjectFile);
 		m.addItem('Save Project', exportProjectToFile);
 		if (runtime.recording || runtime.ready==ReadyLabel.COUNTDOWN || runtime.ready==ReadyLabel.READY) {
@@ -1063,13 +1063,13 @@ class Scratch extends Sprite {
 		if (b.lastEvent.shiftKey && jsEnabled) {
 			m.addLine();
 			m.addItem('Import experimental extension', function () {
-				function loadJSExtension(dialog:DialogBox) {
+				function loadJSExtension(dialog) {
 					var url = dialog.getField('URL').replace(/^\s+|\s+$/g, '');
 					if (url.length == 0) return;
 					externalCall('ScratchExtensions.loadExternalJS', null, url);
 				}
 
-				var d:DialogBox = new DialogBox(loadJSExtension);
+				d = new DialogBox(loadJSExtension);
 				d.addTitle('Load Javascript Scratch Extension');
 				d.addField('URL', 120);
 				d.addAcceptCancelButtons('Load');
@@ -1078,24 +1078,24 @@ class Scratch extends Sprite {
 		}
 	}
 
-	showEditMenu(b:*) {
-		var m:Menu = new Menu(null, 'More', CSS.topBarColor(), 28);
+	showEditMenu(b) {
+		m = new Menu(null, 'More', CSS.topBarColor(), 28);
 		m.addItem('Undelete', runtime.undelete, runtime.canUndelete());
 		m.addLine();
 		m.addItem('Small stage layout', toggleSmallStage, true, stageIsContracted);
 		m.addItem('Turbo mode', toggleTurboMode, true, interp.turboMode);
 		addEditMenuItems(b, m);
-		var p:Point = b.localToGlobal(new Point(0, 0));
+		var p = new Point(b.localToGlobal(new Point(0, 0)));
 		m.showOnStage(stage, b.x, topBarPart.bottom() - 1);
 	}
 
-	addEditMenuItems(b:*, m:Menu) {
+	addEditMenuItems(b, m) {
 		m.addLine();
 		m.addItem('Edit block colors', editBlockColors);
 	}
 
 	editBlockColors() {
-		var d:DialogBox = new DialogBox();
+		d = new DialogBox();
 		d.addTitle('Edit Block Colors');
 		d.addWidget(new BlockColorEditor());
 		d.addButton('Close', d.cancel);
@@ -1116,8 +1116,8 @@ class Scratch extends Sprite {
 
 	onNewProject() {}
 
-	createNewProjectAndThen(callback:Function = null) {
-		function clearProject() {
+	createNewProjectAndThen(callback = null) {
+		clearProject() {
 			startNewProject('', '');
 			setProjectName('Untitled');
 			onNewProject();
@@ -1128,17 +1128,17 @@ class Scratch extends Sprite {
 		saveProjectAndThen(clearProject);
 	}
 
-	createNewProject(ignore:* = null) {
+	createNewProject(ignore = null) {
 		createNewProjectAndThen();
 	}
 
-	createNewProjectScratchX(jsCallback:Array) {
+	createNewProjectScratchX(jsCallback) {
 		createNewProjectAndThen(function() {
 			externalCallArray(jsCallback);
 		});
 	}
 
-	saveProjectAndThen(postSaveAction:Function = null) {
+	saveProjectAndThen(postSaveAction = null) {
 		// Give the user a chance to save their project, if needed, then call postSaveAction.
 		doNothing() {
 		}
@@ -1170,19 +1170,19 @@ class Scratch extends Sprite {
 		d.showOnStage(stage);
 	}
 
-	exportProjectToFile(fromJS = false, saveCallback:Function = null) {
+	exportProjectToFile(fromJS = false, saveCallback = null) {
 		squeakSoundsConverted() {
 			scriptsPane.saveScripts(false);
 			var projectType = extensionManager.hasExperimentalExtensions() ? '.sbx' : '.sb2';
 			var defaultName = StringUtil.trim(projectName());
 			defaultName = ((defaultName.length > 0) ? defaultName : 'project') + projectType;
-			var zipData:ByteArray = projIO.encodeProjectAsZipFile(stagePane);
-			var file:FileReference = new FileReference();
+			zipData = new ByteArray(projIO.encodeProjectAsZipFile(stagePane));
+			var file = new FileReference();
 			file.addEventListener(Event.COMPLETE, fileSaved);
 			file.save(zipData, fixFileName(defaultName));
 		}
 
-		fileSaved(e:Event) {
+		fileSaved(e) {
 			if (!fromJS) setProjectName(e.target.name);
 			if (isExtensionDevMode) {
 				// Some versions of the editor think of this as an "export" and some think of it as a "save"
@@ -1192,7 +1192,7 @@ class Scratch extends Sprite {
 		}
 
 		if (loadInProgress) return;
-		var projIO:ProjectIO = new ProjectIO(this);
+		projIO = new ProjectIO(this);
 		projIO.convertSqueakSounds(stagePane, squeakSoundsConverted);
 	}
 
@@ -1210,7 +1210,7 @@ class Scratch extends Sprite {
 
 	saveSummary() {
 		var name = (projectName() || "project") + ".txt";
-		var file:FileReference = new FileReference();
+		file = new FileReference();
 		file.save(stagePane.getSummary(), fixFileName(name));
 	}
 
@@ -1223,10 +1223,10 @@ class Scratch extends Sprite {
 		stagePart.refresh();
 	}
 
-	handleTool(tool, evt:MouseEvent) {
+	handleTool(tool, evt) {
 	}
 
-	showBubble(text, x:* = null, y:* = null, width = 0) {
+	showBubble(text, x = null, y = null, width = 0) {
 		if (x == null) x = stage.mouseX;
 		if (y == null) y = stage.mouseY;
 		gh.showBubble(text, Number(x), Number(y), width);
@@ -1235,7 +1235,7 @@ class Scratch extends Sprite {
 	// TODO: calculate field width for up to 40 hex digits of CSS.normalTextFont
 	kGitHashFieldWidth = 7 * 41;
 	makeVersionDetailsDialog() {
-		var d = new DialogBox();
+		d = new DialogBox();
 		d.addTitle('Version Details');
 		d.addField('GPU enabled', kGitHashFieldWidth, SCRATCH::allow3d);
 		d.addField('scratch-flash', kGitHashFieldWidth, SCRATCH::revision);
@@ -1243,7 +1243,7 @@ class Scratch extends Sprite {
 	}
 
 	showVersionDetails() {
-		var versionDetailsBox:DialogBox = makeVersionDetailsDialog();
+		versionDetailsBox = new DialogBox(makeVersionDetailsDialog());
 		versionDetailsBox.addButton('OK', versionDetailsBox.accept);
 		versionDetailsBox.showOnStage(stage);
 	}
@@ -1252,7 +1252,7 @@ class Scratch extends Sprite {
 	// Project Management and Sign in
 	//------------------------------
 
-	setLanguagePressed(b:IconButton) {
+	setLanguagePressed(b) {
 		setLanguage(lang) {
 			Translator.setLanguage(lang);
 			languageChanged = true;
@@ -1265,10 +1265,10 @@ class Scratch extends Sprite {
 			m.addItem('set font size');
 			m.addLine();
 		}
-		for each (var entry:Array in Translator.languages) {
+		for each (var entry in Translator.languages) {
 			m.addItem(entry[1], entry[0]);
 		}
-		var p:Point = b.localToGlobal(new Point(0, 0));
+		var p = new Point(b.localToGlobal(new Point(0, 0)));
 		m.showOnStage(stage, b.x, topBarPart.bottom() - 1);
 	}
 
@@ -1310,7 +1310,7 @@ class Scratch extends Sprite {
 	originalProj = new ByteArray();
 	revertUndo = new ByteArray();
 
-	saveForRevert(projData:ByteArray, isNew, onServer = false) {
+	saveForRevert(projData, isNew, onServer = false) {
 		originalProj = projData;
 		revertUndo = null;
 	}
@@ -1347,8 +1347,9 @@ class Scratch extends Sprite {
 		revertUndo = null
 	}
 
-	addNewSprite(spr:ScratchSprite, showImages = false, atMouse = false) {
-		var c:ScratchCostume, byteCount;
+	addNewSprite(spr, showImages = false, atMouse = false) {
+		c = new ScratchCostume() 
+		byteCount = new int();
 		for each (c in spr.costumes) {
 			if (!c.baseLayerData) c.prepareToSave()
 			byteCount += c.baseLayerData.length;
@@ -1369,7 +1370,7 @@ class Scratch extends Sprite {
 		}
 	}
 
-	addSound(snd:ScratchSound, targetObj:ScratchObj = null) {
+	addSound(snd, targetObj = null) {
 		if (snd.soundData && !okayToAdd(snd.soundData.length)) return; // not enough room
 		if (!targetObj) targetObj = viewedObj();
 		snd.soundName = targetObj.unusedSoundName(snd.soundName);
@@ -1381,7 +1382,7 @@ class Scratch extends Sprite {
 		}
 	}
 
-	addCostume(c:ScratchCostume, targetObj:ScratchObj = null) {
+	addCostume(c, targetObj = null) {
 		if (!c.baseLayerData) c.prepareToSave();
 		if (!okayToAdd(c.baseLayerData.length)) return; // not enough room
 		if (!targetObj) targetObj = viewedObj();
@@ -1397,12 +1398,12 @@ class Scratch extends Sprite {
 		// Otherwise, return false and display a warning dialog.
 		const assetByteLimit = 50 * 1024 * 1024; // 50 megabytes
 		var assetByteCount = newAssetBytes;
-		for each (var obj:ScratchObj in stagePane.allObjects()) {
-			for each (var c:ScratchCostume in obj.costumes) {
+		for each (var obj in stagePane.allObjects()) {
+			for each (var c in obj.costumes) {
 				if (!c.baseLayerData) c.prepareToSave();
 				assetByteCount += c.baseLayerData.length;
 			}
-			for each (var snd:ScratchSound in obj.sounds) assetByteCount += snd.soundData.length;
+			for each (var snd in obj.sounds) assetByteCount += snd.soundData.length;
 		}
 		if (assetByteCount > assetByteLimit) {
 			var overBy = Math.max(1, (assetByteCount - assetByteLimit) / 1024);
@@ -1420,7 +1421,7 @@ class Scratch extends Sprite {
 	// Flash sprite (helps connect a sprite on the stage with a sprite library entry)
 	//------------------------------
 
-	flashSprite(spr:ScratchSprite) {
+	flashSprite(spr) {
 		doFade(alpha) {
 			box.alpha = alpha
 		}
@@ -1472,7 +1473,7 @@ class Scratch extends Sprite {
 	// Camera Dialog
 	//------------------------------
 
-	openCameraDialog(savePhoto:Function) {
+	openCameraDialog(savePhoto) {
 		closeCameraDialog();
 		cameraDialog = new CameraDialog(savePhoto);
 		cameraDialog.fixLayout();
@@ -1489,14 +1490,14 @@ class Scratch extends Sprite {
 	}
 
 	// Misc.
-	createMediaInfo(obj:*, owningObj:ScratchObj = null):MediaInfo {
+	createMediaInfo(obj, owningObj = null) {
 		return new MediaInfo(obj, owningObj);
 	}
 
-	loadSingleFile(fileLoaded:Function, filter:FileFilter = null) {
-		function fileSelected(event:Event) {
+	loadSingleFile(fileLoaded, filter = null) {
+		fileSelected(event) {
 			if (fileList.fileList.length > 0) {
-				var file:FileReference = FileReference(fileList.fileList[0]);
+				var file = FileReference(fileList.fileList[0]);
 				file.addEventListener(Event.COMPLETE, fileLoaded);
 				file.load();
 			}
@@ -1519,9 +1520,9 @@ class Scratch extends Sprite {
 		return ExternalInterface.available;
 	}
 
-	externalCall(functionName, returnValueCallback:Function = null, ...args) {
+	externalCall(functionName, returnValueCallback = null, ...args) {
 		args.unshift(functionName);
-		var retVal:*;
+		var retVal;
 		try {
 			retVal = ExternalInterface.call.apply(ExternalInterface, args);
 		}
@@ -1535,13 +1536,13 @@ class Scratch extends Sprite {
 		}
 	}
 
-	addExternalCallback(functionName, closure:Function) {
+	addExternalCallback(functionName, closure) {
 		ExternalInterface.addCallback(functionName, closure);
 	}
 
 	// jsCallbackArray is: [functionName, arg1, arg2...] where args are optional.
 	// TODO: rewrite all versions of externalCall in terms of this
-	externalCallArray(jsCallbackArray:Array, returnValueCallback:Function = null) {
+	externalCallArray(jsCallbackArray, returnValueCallback = null) {
 		args = new Array(jsCallbackArray.concat()); // clone
 		args.splice(1, 0, returnValueCallback);
 		externalCall.apply(this, args);
