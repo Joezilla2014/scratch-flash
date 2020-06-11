@@ -72,8 +72,9 @@ import './util/*';
 
 import './watchers/ListWatcher.js';
 
-default class Scratch extends Sprite {
+class Scratch extends Sprite {
 	// Version
+	'use strict';
 	var app = new Scratch(); // static reference to the app, used for debugging
 
 	// Display modes 
