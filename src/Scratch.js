@@ -260,7 +260,7 @@ class Scratch extends Sprite {
 			}
 		}
 
-		handleError(e = new ErrorEvent()) {
+		handleError(e) extends ErrorEvent {
 			jsThrowError('Failed to load SBX: ' + e.toString());
 		}
 
@@ -382,7 +382,7 @@ class Scratch extends Sprite {
 		return isOffline || isExtensionDevMode;
 	}
 
-	getMediaLibrary(type, whenDone:Function):MediaLibrary {
+	getMediaLibrary(type, whenDone = new Function()) extends MediaLibrary {
 		return new MediaLibrary(this, type, whenDone);
 	}
 
