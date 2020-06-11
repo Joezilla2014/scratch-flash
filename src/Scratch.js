@@ -79,19 +79,19 @@ class Scratch extends Sprite {
 
 	// Display modes 
 	hostProtocol = 'http';
-	Boolean editMode; // true when project editor showing, false when only the player is showing
-	Boolean isOffline; // true when running as an offline (i.e. stand-alone) app
-	Boolean isSmallPlayer; // true when displaying as a scaled-down player (e.g. in search results)
-	Boolean stageIsContracted; // true when the stage is half size to give more space on small screens
-	Boolean isIn3D;
+	editMode = new Boolean(); // true when project editor showing, false when only the player is showing
+	isOffline = new Boolean(); // true when running as an offline (i.e. stand-alone) app
+	isSmallPlayer = new Boolean(); // true when displaying as a scaled-down player (e.g. in search results)
+	stageIsContracted = new Boolean(); // true when the stage is half size to give more space on small screens
+	isIn3D = new Boolean();
 	render3D = new DisplayObjectContainerIn3D();
-	Boolean isArmCPU;
-	jsEnabled = false; // true when the SWF can talk to the webpage
-	ignoreResize = false; // If true, temporarily ignore resize events.
-	isExtensionDevMode = false; // If true, run in extension development mode (as on ScratchX)
-	isMicroworld = false;
+	isArmCPU = new Boolean();
+	jsEnabled = new Boolean(false); // true when the SWF can talk to the webpage
+	ignoreResize = new Boolean(false); // If true, temporarily ignore resize events.
+	isExtensionDevMode = new Boolean(false); // If true, run in extension development mode (as on ScratchX)
+	isMicroworld = new Boolean(false);
 
-	Number presentationScale;
+	presentationScale = new Number();
 	
 	// Runtime
 	runtime = new ScratchRuntime();
@@ -101,10 +101,10 @@ class Scratch extends Sprite {
 	gh = new GestureHandler();
 	projectID = '';
 	projectOwner = '';
-	Boolean projectIsPrivate;
+	projectIsPrivate = new Boolean();
 	oldWebsiteURL = '';
-	Boolean loadInProgress;
-	debugOps = false;
+	loadInProgress = new Boolean();
+	debugOps = new Boolean(false);
 	debugOpCmd = '';
 
 	protected var autostart;
