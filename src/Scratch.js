@@ -260,7 +260,7 @@ class Scratch extends Sprite {
 			}
 		}
 
-		handleError(e) {
+		function handleError(e) {
 			jsThrowError('Failed to load SBX: ' + e.toString());
 		}
 
