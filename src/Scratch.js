@@ -459,7 +459,7 @@ class Scratch extends Sprite {
 
 	clearCachedBitmaps() {
 		for (var i = 0; i < stagePane.numChildren; ++i) {
-			var spr:ScratchSprite = (stagePane.getChildAt(i) as ScratchSprite);
+			var spr = new ScratchSprite(stagePane.getChildAt(i));
 			if (spr) spr.clearCachedBitmap();
 		}
 		stagePane.clearCachedBitmap();
