@@ -640,7 +640,7 @@ import './watchers/ListWatcher.js';
       if (this.isOffline) {
         stage.displayState = enterPresentation ? StageDisplayState.FULL_SCREEN_INTERACTIVE : StageDisplayState.NORMAL;
       }
-      for each(var o of this.stagePane.allObjects()) o.applyFilters();
+      for (var o of this.stagePane.allObjects()) o.applyFilters();
 
       if (this.lp) this.fixLoadProgressLayout();
       this.stagePart.presentationModeWasChanged(enterPresentation);
@@ -692,7 +692,7 @@ import './watchers/ListWatcher.js';
       this.saveNeeded = false;
 
       // translate the blocks of the newly loaded project
-      for each(var o in this.stagePane.allObjects()) {
+      for (var o of this.stagePane.allObjects()) {
         o.updateScriptsAfterTranslation();
       }
 
@@ -974,7 +974,7 @@ import './watchers/ListWatcher.js';
     Scratch.prototype.translationChanged = function() {
       // The translation has changed. Fix scripts and update the UI.
       // directionChanged is true if the writing direction (e.g. left-to-right) has changed.
-      for each(var o in this.stagePane.allObjects()) {
+      for (var o of this.stagePane.allObjects()) {
         o.updateScriptsAfterTranslation();
       }
       var uiLayer = Scratch.app.stagePane.getUILayer();
@@ -1201,7 +1201,7 @@ import './watchers/ListWatcher.js';
         m.addItem('set font size');
         m.addLine();
       }
-      for each(var entry in Translator.languages) {
+      for (var entry of Translator.languages) {
         m.addItem(entry[1], entry[0]);
       }
       var p = b.localToGlobal(new Point(0, 0));
@@ -1268,7 +1268,7 @@ import './watchers/ListWatcher.js';
       showImages = AS3JS.Utils.getDefaultValue(showImages, false);
       atMouse = AS3JS.Utils.getDefaultValue(atMouse, false);
       var c, byteCount: int;
-      for each(c in spr.costumes) {
+      for (c of spr.costumes) {
         if (!c.baseLayerData) c.prepareToSave()
         byteCount += c.baseLayerData.length;
       }
@@ -1283,7 +1283,7 @@ import './watchers/ListWatcher.js';
       this.setTab(showImages ? 'images' : 'scripts');
       this.setSaveNeeded(true);
       this.libraryPart.refresh();
-      for each(c in spr.costumes) {
+      for (c of spr.costumes) {
         if (ScratchCostume.isSVGData(c.baseLayerData)) c.setSVGData(c.baseLayerData, false);
       }
     };
@@ -1315,12 +1315,12 @@ import './watchers/ListWatcher.js';
       // Otherwise, return false and display a warning dialog.
       var assetByteLimit = 50 * 1024 * 1024; // 50 megabytes
       var assetByteCount = newAssetBytes;
-      for each(var obj in this.stagePane.allObjects()) {
-        for each(var c in obj.costumes) {
+      for (var obj of this.stagePane.allObjects()) {
+        for (var c of obj.costumes) {
           if (!c.baseLayerData) c.prepareToSave();
           assetByteCount += c.baseLayerData.length;
         }
-        for each(var snd in obj.sounds) assetByteCount += snd.soundData.length;
+        for (var snd of obj.sounds) assetByteCount += snd.soundData.length;
       }
       if (assetByteCount > assetByteLimit) {
         var overBy = Math.max(1, (assetByteCount - assetByteLimit) / 1024);
