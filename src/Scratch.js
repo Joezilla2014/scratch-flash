@@ -444,7 +444,7 @@ class Scratch extends Sprite {
 		}
 		else {
 			for (var i = 0; i < stagePane.numChildren; ++i) {
-				var spr:ScratchSprite = (stagePane.getChildAt(i) as ScratchSprite);
+				spr = new ScratchSprite(stagePane.getChildAt(i));
 				if (spr) {
 					spr.clearCachedBitmap();
 					spr.updateCostume();
