@@ -73,1504 +73,1367 @@ import util.*;
 
 import watchers.ListWatcher;
 
-public class Scratch extends Sprite {
-	// Version
-	public static const versionString:String = 'v461.2';
-	public static var app:Scratch; // static reference to the app, used for debugging
-
-	// Display modes
-	public var hostProtocol:String = 'http';
-	public var editMode:Boolean; // true when project editor showing, false when only the player is showing
-	public var isOffline:Boolean; // true when running as an offline (i.e. stand-alone) app
-	public var isSmallPlayer:Boolean; // true when displaying as a scaled-down player (e.g. in search results)
-	public var stageIsContracted:Boolean; // true when the stage is half size to give more space on small screens
-	public var isIn3D:Boolean;
-	public var render3D:DisplayObjectContainerIn3D;
-	public var isArmCPU:Boolean;
-	public var jsEnabled:Boolean = false; // true when the SWF can talk to the webpage
-	public var ignoreResize:Boolean = false; // If true, temporarily ignore resize events.
-	public var isExtensionDevMode:Boolean = false; // If true, run in extension development mode (as on ScratchX)
-	public var isMicroworld:Boolean = false;
-
-	public var presentationScale:Number;
-	
-	// Runtime
-	public var runtime:ScratchRuntime;
-	public var interp:Interpreter;
-	public var extensionManager:ExtensionManager;
-	public var server:Server;
-	public var gh:GestureHandler;
-	public var projectID:String = '';
-	public var projectOwner:String = '';
-	public var projectIsPrivate:Boolean;
-	public var oldWebsiteURL:String = '';
-	public var loadInProgress:Boolean;
-	public var debugOps:Boolean = false;
-	public var debugOpCmd:String = '';
-
-	protected var autostart:Boolean;
-	private var viewedObject:ScratchObj;
-	private var lastTab:String = 'scripts';
-	protected var wasEdited:Boolean; // true if the project was edited and autosaved
-	private var _usesUserNameBlock:Boolean = false;
-	protected var languageChanged:Boolean; // set when language changed
-
-	// UI Elements
-	public var playerBG:Shape;
-	public var palette:BlockPalette;
-	public var scriptsPane:ScriptsPane;
-	public var stagePane:ScratchStage;
-	public var mediaLibrary:MediaLibrary;
-	public var lp:LoadProgress;
-	public var cameraDialog:CameraDialog;
-
-	// UI Parts
-	public var libraryPart:LibraryPart;
-	protected var topBarPart:TopBarPart;
-	protected var stagePart:StagePart;
-	private var tabsPart:TabsPart;
-	protected var scriptsPart:ScriptsPart;
-	public var imagesPart:ImagesPart;
-	public var soundsPart:SoundsPart;
-	public const tipsBarClosedWidth:int = 17;
-
-	public var logger:Log = new Log(16);
-
-	public function Scratch() {
-		SVGTool.setStage(stage);
-		loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, uncaughtErrorHandler);
-		app = this;
-
-		// This one must finish before most other queries can start, so do it separately
-		determineJSAccess();
-	}
-
-	protected function determineJSAccess():void {
-		if (externalInterfaceAvailable()) {
-			try {
-				externalCall('function(){return true;}', jsAccessDetermined);
-				return; // wait for callback
-			}
-			catch (e:Error) {
-			}
-		}
-		jsAccessDetermined(false);
-	}
-
-	private function jsAccessDetermined(result:Boolean):void {
-		jsEnabled = result;
-		initialize();
-	}
-
-	protected function initialize():void {
-		isOffline = !URLUtil.isHttpURL(loaderInfo.url);
-		hostProtocol = URLUtil.getProtocol(loaderInfo.url);
-
-		isExtensionDevMode = (loaderInfo.parameters['extensionDevMode'] == 'true');
-		isMicroworld = (loaderInfo.parameters['microworldMode'] == 'true');
-
-		checkFlashVersion();
-		initServer();
-
-		stage.align = StageAlign.TOP_LEFT;
-		stage.scaleMode = StageScaleMode.NO_SCALE;
-		stage.frameRate = 30;
-
-		if (stage.hasOwnProperty('color')) {
-			// Stage doesn't have a color property on Air 2.6, and Linux throws if you try to set it anyway.
-			stage['color'] = CSS.backgroundColor();
-		}
-
-		Block.setFonts(10, 9, true, 0); // default font sizes
-		Block.MenuHandlerFunction = BlockMenus.BlockMenuHandler;
-		CursorTool.init(this);
-		app = this;
-
-		stagePane = getScratchStage();
-		gh = new GestureHandler(this, (loaderInfo.parameters['inIE'] == 'true'));
-		initInterpreter();
-		initRuntime();
-		initExtensionManager();
-		Translator.initializeLanguageList();
-
-		playerBG = new Shape(); // create, but don't add
-		addParts();
-
-		server.getSelectedLang(Translator.setLanguageValue);
-
-
-		stage.addEventListener(MouseEvent.MOUSE_DOWN, gh.mouseDown);
-		stage.addEventListener(MouseEvent.MOUSE_MOVE, gh.mouseMove);
-		stage.addEventListener(MouseEvent.MOUSE_UP, gh.mouseUp);
-		stage.addEventListener(MouseEvent.MOUSE_WHEEL, gh.mouseWheel);
-		stage.addEventListener('rightClick', gh.rightMouseClick);
-
-		stage.addEventListener(KeyboardEvent.KEY_UP, runtime.keyUp);
-		stage.addEventListener(KeyboardEvent.KEY_DOWN, keyDown); // to handle escape key
-		stage.addEventListener(Event.ENTER_FRAME, step);
-		stage.addEventListener(Event.RESIZE, onResize);
-
-		setEditMode(startInEditMode());
-
-		// install project before calling fixLayout()
-		if (editMode) runtime.installNewProject();
-		else runtime.installEmptyProject();
-
-		fixLayout();
-		//Analyze.collectAssets(0, 119110);
-		//Analyze.checkProjects(56086, 64220);
-		//Analyze.countMissingAssets();
-
-		handleStartupParameters();
-	}
-
-	protected function handleStartupParameters():void {
-		setupExternalInterface(false);
-		jsEditorReady();
-	}
-
-	protected function setupExternalInterface(oldWebsitePlayer:Boolean):void {
-		if (!jsEnabled) return;
-
-		addExternalCallback('ASloadExtension', extensionManager.loadRawExtension);
-		addExternalCallback('ASextensionCallDone', extensionManager.callCompleted);
-		addExternalCallback('ASextensionReporterDone', extensionManager.reporterCompleted);
-		addExternalCallback('AScreateNewProject', createNewProjectScratchX);
-
-		if (isExtensionDevMode) {
-			addExternalCallback('ASloadGithubURL', loadGithubURL);
-			addExternalCallback('ASloadBase64SBX', loadBase64SBX);
-			addExternalCallback('ASsetModalOverlay', setModalOverlay);
-		}
-	}
-
-	protected function jsEditorReady():void {
-		if (jsEnabled) {
-			externalCall('JSeditorReady', function (success:Boolean):void {
-				if (!success) jsThrowError('Calling JSeditorReady() failed.');
-			});
-		}
-	}
-
-	private function loadSingleGithubURL(url:String):void {
-		url = StringUtil.trim(unescape(url));
-
-		function handleComplete(e:Event):void {
-			runtime.installProjectFromData(sbxLoader.data);
-			if (StringUtil.trim(projectName()).length == 0) {
-				var newProjectName:String = url;
-				var index:int = newProjectName.indexOf('?');
-				if (index > 0) newProjectName = newProjectName.slice(0, index);
-				index = newProjectName.lastIndexOf('/');
-				if (index > 0) newProjectName = newProjectName.substr(index + 1);
-				index = newProjectName.lastIndexOf('.sbx');
-				if (index > 0) newProjectName = newProjectName.slice(0, index);
-				setProjectName(newProjectName);
-			}
-		}
-
-		function handleError(e:ErrorEvent):void {
-			jsThrowError('Failed to load SBX: ' + e.toString());
-		}
-
-		var fileExtension:String = url.substr(url.lastIndexOf('.')).toLowerCase();
-		if (fileExtension == '.js') {
-			externalCall('ScratchExtensions.loadExternalJS', null, url);
-			return;
-		}
-
-		// Otherwise assume it's a project (SB2, SBX, etc.)
-		loadInProgress = true;
-		var request:URLRequest = new URLRequest(url);
-		var sbxLoader:URLLoader = new URLLoader(request);
-		sbxLoader.dataFormat = URLLoaderDataFormat.BINARY;
-		sbxLoader.addEventListener(Event.COMPLETE, handleComplete);
-		sbxLoader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, handleError);
-		sbxLoader.addEventListener(IOErrorEvent.IO_ERROR, handleError);
-		sbxLoader.load(request);
-	}
-
-	private var pendingExtensionURLs:Array;
-	private function loadGithubURL(urlOrArray:*):void {
-		if (!isExtensionDevMode) return;
-
-		var url:String;
-		var urlArray:Array = urlOrArray as Array;
-		if (urlArray) {
-			var urlCount:int = urlArray.length;
-			var extensionURLs:Array = [];
-			var projectURL:String;
-			var index:int;
-
-			// Filter URLs: allow at most one project file, and wait until it loads before loading extensions.
-			for (index = 0; index < urlCount; ++index) {
-				url = StringUtil.trim(unescape(urlArray[index]));
-				if (StringUtil.endsWith(url.toLowerCase(), '.js')) {
-					extensionURLs.push(url);
-				}
-				else if (url.length > 0) {
-					if (projectURL) {
-						jsThrowError("Ignoring extra project URL: " + projectURL);
-					}
-					projectURL = StringUtil.trim(url);
-				}
-			}
-			if (projectURL) {
-				pendingExtensionURLs = extensionURLs;
-				loadSingleGithubURL(projectURL);
-				// warning will be shown later
-			}
-			else {
-				urlCount = extensionURLs.length;
-				for (index = 0; index < urlCount; ++index) {
-					loadSingleGithubURL(extensionURLs[index]);
-				}
-				externalCall('JSshowWarning');
-			}
-		}
-		else {
-			url = urlOrArray as String;
-			loadSingleGithubURL(url);
-			externalCall('JSshowWarning');
-		}
-	}
-
-	private function loadBase64SBX(base64:String):void {
-		var sbxData:ByteArray = Base64Encoder.decode(base64);
-		app.setProjectName('');
-		runtime.installProjectFromData(sbxData);
-	}
-
-	protected function initTopBarPart():void {
-		topBarPart = new TopBarPart(this);
-	}
-
-	protected function initScriptsPart():void {
-		scriptsPart = new ScriptsPart(this);
-	}
-
-	protected function initImagesPart():void {
-		imagesPart = new ImagesPart(this);
-	}
-
-	protected function initInterpreter():void {
-		interp = new Interpreter(this);
-	}
-
-	protected function initRuntime():void {
-		runtime = new ScratchRuntime(this, interp);
-	}
-
-	protected function initExtensionManager():void {
-		if (isExtensionDevMode) {
-			extensionManager = new ExtensionDevManager(this);
-		}
-		else {
-			extensionManager = new ExtensionManager(this);
-		}
-	}
-
-	protected function initServer():void {
-		server = new Server();
-	}
-
-	public function showTip(tipName:String):void {
-	}
-
-	public function closeTips():void {
-	}
-
-	public function reopenTips():void {
-	}
-
-	public function tipsWidth():int {
-		return 0;
-	}
-
-	protected function startInEditMode():Boolean {
-		return isOffline || isExtensionDevMode;
-	}
-
-	public function getMediaLibrary(type:String, whenDone:Function):MediaLibrary {
-		return new MediaLibrary(this, type, whenDone);
-	}
-
-	public function getMediaPane(app:Scratch, type:String):MediaPane {
-		return new MediaPane(app, type);
-	}
-
-	public function getScratchStage():ScratchStage {
-		return new ScratchStage();
-	}
-
-	public function getPaletteBuilder():PaletteBuilder {
-		return new PaletteBuilder(this);
-	}
-
-	private function uncaughtErrorHandler(event:UncaughtErrorEvent):void {
-		if (event.error is Error) {
-			var error:Error = event.error as Error;
-			logException(error);
-		}
-		else if (event.error is ErrorEvent) {
-			var errorEvent:ErrorEvent = event.error as ErrorEvent;
-			log(LogLevel.ERROR, errorEvent.toString());
-		}
-	}
-
-	// All other log...() methods funnel to this one
-	public function log(severity:String, messageKey:String, extraData:Object = null):LogEntry {
-		return logger.log(severity, messageKey, extraData);
-	}
-
-	// Log an Error object generated by an exception
-	public function logException(e:Error):void {
-		log(LogLevel.ERROR, e.toString());
-	}
-
-	// Shorthand for log(LogLevel.ERROR, ...)
-	public function logMessage(msg:String, extra_data:Object = null):void {
-		log(LogLevel.ERROR, msg, extra_data);
-	}
-
-	public function loadProjectFailed():void {
-		loadInProgress = false;
-	}
-
-	public function jsThrowError(s:String):void {
-		// Throw the given string as an error in the browser. Errors on the production site are logged.
-		var errorString:String = 'SWF Error: ' + s;
-		log(LogLevel.WARNING, errorString);
-		if (jsEnabled) {
-			externalCall('JSthrowError', null, errorString);
-		}
-	}
-
-	protected function checkFlashVersion():void {
-		SCRATCH::allow3d {
-			if (Capabilities.playerType != "Desktop" || Capabilities.version.indexOf('IOS') === 0) {
-				var versionString:String = Capabilities.version.substr(Capabilities.version.indexOf(' ') + 1);
-				var versionParts:Array = versionString.split(',');
-				var majorVersion:int = parseInt(versionParts[0]);
-				var minorVersion:int = parseInt(versionParts[1]);
-				if ((majorVersion > 11 || (majorVersion == 11 && minorVersion >= 7)) && !isArmCPU && Capabilities.cpuArchitecture == 'x86') {
-					render3D = new DisplayObjectContainerIn3D();
-					render3D.setStatusCallback(handleRenderCallback);
-					return;
-				}
-			}
-		}
-
-		render3D = null;
-	}
-
-	SCRATCH::allow3d
-	protected function handleRenderCallback(enabled:Boolean):void {
-		if (!enabled) {
-			go2D();
-			render3D = null;
-		}
-		else {
-			for (var i:int = 0; i < stagePane.numChildren; ++i) {
-				var spr:ScratchSprite = (stagePane.getChildAt(i) as ScratchSprite);
-				if (spr) {
-					spr.clearCachedBitmap();
-					spr.updateCostume();
-					spr.applyFilters();
-				}
-			}
-			stagePane.clearCachedBitmap();
-			stagePane.updateCostume();
-			stagePane.applyFilters();
-		}
-	}
-
-	public function clearCachedBitmaps():void {
-		for (var i:int = 0; i < stagePane.numChildren; ++i) {
-			var spr:ScratchSprite = (stagePane.getChildAt(i) as ScratchSprite);
-			if (spr) spr.clearCachedBitmap();
-		}
-		stagePane.clearCachedBitmap();
-
-		// unsupported technique that seems to force garbage collection
-		try {
-			new LocalConnection().connect('foo');
-			new LocalConnection().connect('foo');
-		} catch (e:Error) {
-		}
-	}
-
-	SCRATCH::allow3d
-	public function go3D():void {
-		if (!render3D || isIn3D) return;
-
-		var i:int = stagePart.getChildIndex(stagePane);
-		stagePart.removeChild(stagePane);
-		render3D.setStage(stagePane, stagePane.penLayer);
-		stagePart.addChildAt(stagePane, i);
-		isIn3D = true;
-	}
-
-	SCRATCH::allow3d
-	public function go2D():void {
-		if (!render3D || !isIn3D) return;
-
-		var i:int = stagePart.getChildIndex(stagePane);
-		stagePart.removeChild(stagePane);
-		render3D.setStage(null, null);
-		stagePart.addChildAt(stagePane, i);
-		isIn3D = false;
-		for (i = 0; i < stagePane.numChildren; ++i) {
-			var spr:ScratchSprite = (stagePane.getChildAt(i) as ScratchSprite);
-			if (spr) {
-				spr.clearCachedBitmap();
-				spr.updateCostume();
-				spr.applyFilters();
-			}
-		}
-		stagePane.clearCachedBitmap();
-		stagePane.updateCostume();
-		stagePane.applyFilters();
-	}
-
-	private var debugRect:Shape;
-
-	public function showDebugRect(r:Rectangle):void {
-		// Used during debugging...
-		var p:Point = stagePane.localToGlobal(new Point(0, 0));
-		if (!debugRect) debugRect = new Shape();
-		var g:Graphics = debugRect.graphics;
-		g.clear();
-		if (r) {
-			g.lineStyle(2, 0xFFFF00);
-			g.drawRect(p.x + r.x, p.y + r.y, r.width, r.height);
-			addChild(debugRect);
-		}
-	}
-
-	public function strings():Array {
-		return [
-			'a copy of the project file on your computer.',
-			'Project not saved!', 'Save now', 'Not saved; project did not load.',
-			'Save project?', 'Don\'t save',
-			'Save now', 'Saved',
-			'Revert', 'Undo Revert', 'Reverting...',
-			'Throw away all changes since opening this project?',
-		];
-	}
-
-	public function viewedObj():ScratchObj {
-		return viewedObject;
-	}
-
-	public function stageObj():ScratchStage {
-		return stagePane;
-	}
-
-	public function projectName():String {
-		return stagePart.projectName();
-	}
-
-	public function highlightSprites(sprites:Array):void {
-		libraryPart.highlight(sprites);
-	}
-
-	public function refreshImageTab(fromEditor:Boolean):void {
-		imagesPart.refresh(fromEditor);
-	}
-
-	public function refreshSoundTab():void {
-		soundsPart.refresh();
-	}
-
-	public function selectCostume():void {
-		imagesPart.selectCostume();
-	}
-
-	public function selectSound(snd:ScratchSound):void {
-		soundsPart.selectSound(snd);
-	}
-
-	public function clearTool():void {
-		CursorTool.setTool(null);
-		topBarPart.clearToolButtons();
-	}
-
-	public function tabsRight():int {
-		return tabsPart.x + tabsPart.w;
-	}
-
-	public function enableEditorTools(flag:Boolean):void {
-		imagesPart.editor.enableTools(flag);
-	}
-
-	public function get usesUserNameBlock():Boolean {
-		return _usesUserNameBlock;
-	}
-
-	public function set usesUserNameBlock(value:Boolean):void {
-		_usesUserNameBlock = value;
-		stagePart.refresh();
-	}
-
-	public function updatePalette(clearCaches:Boolean = true):void {
-		// Note: updatePalette() is called after changing variable, list, or procedure
-		// definitions, so this is a convenient place to clear the interpreter's caches.
-		if (isShowing(scriptsPart)) scriptsPart.updatePalette();
-		if (clearCaches) runtime.clearAllCaches();
-	}
-
-	public function setProjectName(s:String):void {
-		for (;;) {
-			if (StringUtil.endsWith(s, '.sb')) s = s.slice(0, -3);
-			else if (StringUtil.endsWith(s, '.sb2')) s = s.slice(0, -4);
-			else if (StringUtil.endsWith(s, '.sbx')) s = s.slice(0, -4);
-			else break;
-		}
-		stagePart.setProjectName(s);
-	}
-
-	protected var wasEditing:Boolean;
-
-	public function setPresentationMode(enterPresentation:Boolean):void {
-		if (stagePart.isInPresentationMode() != enterPresentation) {
-			presentationModeWasChanged(enterPresentation);
-		}
-	}
-
-	public function presentationModeWasChanged(enterPresentation:Boolean):void {
-		if (enterPresentation) {
-			wasEditing = editMode;
-			if (wasEditing) {
-				setEditMode(false);
-				if (jsEnabled) externalCall('tip_bar_api.hide');
-			}
-		} else {
-			if (wasEditing) {
-				setEditMode(true);
-				if (jsEnabled) externalCall('tip_bar_api.show');
-			}
-		}
-		if (isOffline) {
-			stage.displayState = enterPresentation ? StageDisplayState.FULL_SCREEN_INTERACTIVE : StageDisplayState.NORMAL;
-		}
-		for each (var o:ScratchObj in stagePane.allObjects()) o.applyFilters();
-
-		if (lp) fixLoadProgressLayout();
-		stagePart.presentationModeWasChanged(enterPresentation);
-		stagePane.updateCostume();
-		SCRATCH::allow3d {
-			if (isIn3D) render3D.onStageResize();
-		}
-	}
-
-	private function keyDown(evt:KeyboardEvent):void {
-		// Escape stops drag operations
-		if (!evt.shiftKey && evt.charCode == 27) {
-			gh.escKeyDown();
-		}
-		// Escape exists presentation mode.
-		else if ((evt.charCode == 27) && stagePart.isInPresentationMode()) {
-			setPresentationMode(false);
-		}
-		// Handle enter key
-//		else if(evt.keyCode == 13 && !stage.focus) {
-//			stagePart.playButtonPressed(null);
-//			evt.preventDefault();
-//			evt.stopImmediatePropagation();
-//		}
-		// Handle ctrl-m and toggle 2d/3d mode
-		else if (evt.ctrlKey && evt.charCode == 109) {
-			SCRATCH::allow3d {
-				isIn3D ? go2D() : go3D();
-			}
-			evt.preventDefault();
-			evt.stopImmediatePropagation();
-		}
-		else {
-			runtime.keyDown(evt);
-		}
-	}
-
-	private function setSmallStageMode(flag:Boolean):void {
-		stageIsContracted = flag;
-		stagePart.updateRecordingTools();
-		fixLayout();
-		libraryPart.refresh();
-		tabsPart.refresh();
-		stagePane.applyFilters();
-		stagePane.updateCostume();
-	}
-
-	public function projectLoaded():void {
-		removeLoadProgressBox();
-		System.gc();
-		if (autostart) runtime.startGreenFlags(true);
-		loadInProgress = false;
-		saveNeeded = false;
-
-		// translate the blocks of the newly loaded project
-		for each (var o:ScratchObj in stagePane.allObjects()) {
-			o.updateScriptsAfterTranslation();
-		}
-
-		if (jsEnabled && isExtensionDevMode) {
-			if (pendingExtensionURLs) {
-				loadGithubURL(pendingExtensionURLs);
-				pendingExtensionURLs = null;
-			}
-			externalCall('JSprojectLoaded');
-		}
-	}
-
-	public function resetPlugin(whenDone:Function):void {
-		if (jsEnabled) {
-			externalCall('ScratchExtensions.resetPlugin');
-		}
-		if (whenDone != null) {
-			whenDone();
-		}
-	}
-
-	protected function step(e:Event):void {
-		// Step the runtime system and all UI components.
-		CachedTimer.clearCachedTimer();
-		gh.step();
-		runtime.stepRuntime();
-		Transition.step(null);
-		stagePart.step();
-		libraryPart.step();
-		scriptsPart.step();
-		imagesPart.step();
-	}
-
-	public function updateSpriteLibrary(sortByIndex:Boolean = false):void {
-		libraryPart.refresh()
-	}
-
-	public function updateTopBar():void {
-		topBarPart.refresh();
-	}
-
-	public function threadStarted():void {
-		stagePart.threadStarted()
-	}
-
-	public function selectSprite(obj:ScratchObj):void {
-		if (isShowing(imagesPart)) imagesPart.editor.shutdown();
-		if (isShowing(soundsPart)) soundsPart.editor.shutdown();
-		viewedObject = obj;
-		libraryPart.refresh();
-		tabsPart.refresh();
-		if (isShowing(imagesPart)) {
-			imagesPart.refresh();
-		}
-		if (isShowing(soundsPart)) {
-			soundsPart.currentIndex = 0;
-			soundsPart.refresh();
-		}
-		if (isShowing(scriptsPart)) {
-			scriptsPart.updatePalette();
-			scriptsPane.viewScriptsFor(obj);
-			scriptsPart.updateSpriteWatermark();
-		}
-	}
-
-	public function setTab(tabName:String):void {
-		if (isShowing(imagesPart)) imagesPart.editor.shutdown();
-		if (isShowing(soundsPart)) soundsPart.editor.shutdown();
-		hide(scriptsPart);
-		hide(imagesPart);
-		hide(soundsPart);
-		if (!editMode) return;
-		if (tabName == 'images') {
-			show(imagesPart);
-			imagesPart.refresh();
-		} else if (tabName == 'sounds') {
-			soundsPart.refresh();
-			show(soundsPart);
-		} else if (tabName && (tabName.length > 0)) {
-			tabName = 'scripts';
-			scriptsPart.updatePalette();
-			scriptsPane.viewScriptsFor(viewedObject);
-			scriptsPart.updateSpriteWatermark();
-			show(scriptsPart);
-		}
-		show(tabsPart);
-		show(stagePart); // put stage in front
-		tabsPart.selectTab(tabName);
-		lastTab = tabName;
-		if (saveNeeded) setSaveNeeded(true); // save project when switching tabs, if needed (but NOT while loading!)
-	}
-
-	public function installStage(newStage:ScratchStage):void {
-		var showGreenflagOverlay:Boolean = shouldShowGreenFlag();
-		stagePart.installStage(newStage, showGreenflagOverlay);
-		selectSprite(newStage);
-		libraryPart.refresh();
-		setTab('scripts');
-		scriptsPart.resetCategory();
-		wasEdited = false;
-	}
-
-	protected function shouldShowGreenFlag():Boolean {
-		return !(autostart || editMode);
-	}
-
-	protected function addParts():void {
-		initTopBarPart();
-		stagePart = getStagePart();
-		libraryPart = getLibraryPart();
-		tabsPart = new TabsPart(this);
-		initScriptsPart();
-		initImagesPart();
-		soundsPart = new SoundsPart(this);
-		addChild(topBarPart);
-		addChild(stagePart);
-		addChild(libraryPart);
-		addChild(tabsPart);
-	}
-
-	protected function getStagePart():StagePart {
-		return new StagePart(this);
-	}
-
-	protected function getLibraryPart():LibraryPart {
-		return new LibraryPart(this);
-	}
-
-	public function fixExtensionURL(javascriptURL:String):String {
-		return javascriptURL;
-	}
-
-	// -----------------------------
-	// UI Modes and Resizing
-	//------------------------------
-
-	public function setEditMode(newMode:Boolean):void {
-		Menu.removeMenusFrom(stage);
-		editMode = newMode;
-		if (editMode) {
-			interp.showAllRunFeedback();
-			hide(playerBG);
-			show(topBarPart);
-			show(libraryPart);
-			show(tabsPart);
-			setTab(lastTab);
-			stagePart.hidePlayButton();
-			runtime.edgeTriggersEnabled = true;
-		} else {
-			addChildAt(playerBG, 0); // behind everything
-			playerBG.visible = false;
-			hide(topBarPart);
-			hide(libraryPart);
-			hide(tabsPart);
-			setTab(null); // hides scripts, images, and sounds
-		}
-		stagePane.updateListWatchers();
-		show(stagePart); // put stage in front
-		fixLayout();
-		stagePart.refresh();
-	}
-
-	protected function hide(obj:DisplayObject):void {
-		if (obj.parent) obj.parent.removeChild(obj)
-	}
-
-	protected function show(obj:DisplayObject):void {
-		addChild(obj)
-	}
-
-	protected function isShowing(obj:DisplayObject):Boolean {
-		return obj.parent != null
-	}
-
-	public function onResize(e:Event):void {
-		if (!ignoreResize) fixLayout();
-	}
-
-	public function fixLayout():void {
-		var w:int = stage.stageWidth;
-		var h:int = stage.stageHeight - 1; // fix to show bottom border...
-
-		w = Math.ceil(w / scaleX);
-		h = Math.ceil(h / scaleY);
-
-		updateLayout(w, h);
-	}
-	
-	public function updateRecordingTools(t:Number):void {
-		stagePart.updateRecordingTools(t);
-	}
-	
-	public function removeRecordingTools():void {
-		stagePart.removeRecordingTools();
-	}
-	
-	public function refreshStagePart():void {
-		stagePart.refresh();
-	}
-
-	protected function updateLayout(w:int, h:int):void {
-		topBarPart.x = 0;
-		topBarPart.y = 0;
-		topBarPart.setWidthHeight(w, 28);
-
-		var extraW:int = 2;
-		var extraH:int = stagePart.computeTopBarHeight() + 1;
-		if (editMode) {
-			// adjust for global scale (from browser zoom)
-
-			if (stageIsContracted) {
-				stagePart.setWidthHeight(240 + extraW, 180 + extraH, 0.5);
-			} else {
-				stagePart.setWidthHeight(480 + extraW, 360 + extraH, 1);
-			}
-			stagePart.x = 5;
-			stagePart.y = isMicroworld ? 5 : topBarPart.bottom() + 5;
-			fixLoadProgressLayout();
-		} else {
-			drawBG();
-			var pad:int = (w > 550) ? 16 : 0; // add padding for full-screen mode
-			var scale:Number = Math.min((w - extraW - pad) / 480, (h - extraH - pad) / 360);
-			scale = Math.max(0.01, scale);
-			var scaledW:int = Math.floor((scale * 480) / 4) * 4; // round down to a multiple of 4
-			scale = scaledW / 480;
-			presentationScale = scale;
-			var playerW:Number = (scale * 480) + extraW;
-			var playerH:Number = (scale * 360) + extraH;
-			stagePart.setWidthHeight(playerW, playerH, scale);
-			stagePart.x = int((w - playerW) / 2);
-			stagePart.y = int((h - playerH) / 2);
-			fixLoadProgressLayout();
-			return;
-		}
-		libraryPart.x = stagePart.x;
-		libraryPart.y = stagePart.bottom() + 18;
-		libraryPart.setWidthHeight(stagePart.w, h - libraryPart.y);
-
-		tabsPart.x = stagePart.right() + 5;
-		if (!isMicroworld) {
-			tabsPart.y = topBarPart.bottom() + 5;
-			tabsPart.fixLayout();
-		}
-		else
-			tabsPart.visible = false;
-
-		// the content area shows the part associated with the currently selected tab:
-		var contentY:int = tabsPart.y + 27;
-		if (!isMicroworld)
-			w -= tipsWidth();
-		updateContentArea(tabsPart.x, contentY, w - tabsPart.x - 6, h - contentY - 5, h);
-	}
-
-	protected function updateContentArea(contentX:int, contentY:int, contentW:int, contentH:int, fullH:int):void {
-		imagesPart.x = soundsPart.x = scriptsPart.x = contentX;
-		imagesPart.y = soundsPart.y = scriptsPart.y = contentY;
-		imagesPart.setWidthHeight(contentW, contentH);
-		soundsPart.setWidthHeight(contentW, contentH);
-		scriptsPart.setWidthHeight(contentW, contentH);
-
-		if (mediaLibrary) mediaLibrary.setWidthHeight(topBarPart.w, fullH);
-
-		SCRATCH::allow3d {
-			if (isIn3D) render3D.onStageResize();
-		}
-	}
-
-	private function drawBG():void {
-		var g:Graphics = playerBG.graphics;
-		g.clear();
-		g.beginFill(0);
-		g.drawRect(0, 0, stage.stageWidth, stage.stageHeight);
-	}
-
-	private var modalOverlay:Sprite;
-
-	public function setModalOverlay(enableOverlay:Boolean):void {
-		var currentlyEnabled:Boolean = !!modalOverlay;
-		if (enableOverlay != currentlyEnabled) {
-			if (enableOverlay) {
-				function eatEvent(event:MouseEvent):void {
-					event.stopImmediatePropagation();
-					event.stopPropagation();
-				}
-
-				modalOverlay = new Sprite();
-				modalOverlay.graphics.beginFill(CSS.backgroundColor_ScratchX, 0.8);
-				modalOverlay.graphics.drawRect(0, 0, stage.width, stage.height);
-				modalOverlay.addEventListener(MouseEvent.CLICK, eatEvent);
-				modalOverlay.addEventListener(MouseEvent.MOUSE_DOWN, eatEvent);
-				if (SCRATCH::allow3d) { // TODO: use a better flag or rename this one
-					// These events are only available in flash 11.2 and above.
-					modalOverlay.addEventListener(MouseEvent.RIGHT_CLICK, eatEvent);
-					modalOverlay.addEventListener(MouseEvent.RIGHT_MOUSE_DOWN, eatEvent);
-					modalOverlay.addEventListener(MouseEvent.MIDDLE_CLICK, eatEvent);
-					modalOverlay.addEventListener(MouseEvent.MIDDLE_MOUSE_DOWN, eatEvent);
-				}
-				stage.addChild(modalOverlay);
-			}
-			else {
-				stage.removeChild(modalOverlay);
-				modalOverlay = null;
-			}
-		}
-	}
-
-	public function logoButtonPressed(b:IconButton):void {
-		if (isExtensionDevMode) {
-			externalCall('showPage', null, 'home');
-		}
-	}
-
-	// -----------------------------
-	// Translations utilities
-	//------------------------------
-
-	public function translationChanged():void {
-		// The translation has changed. Fix scripts and update the UI.
-		// directionChanged is true if the writing direction (e.g. left-to-right) has changed.
-		for each (var o:ScratchObj in stagePane.allObjects()) {
-			o.updateScriptsAfterTranslation();
-		}
-		var uiLayer:Sprite = app.stagePane.getUILayer();
-		for (var i:int = 0; i < uiLayer.numChildren; ++i) {
-			var lw:ListWatcher = uiLayer.getChildAt(i) as ListWatcher;
-			if (lw) lw.updateTranslation();
-		}
-		topBarPart.updateTranslation();
-		stagePart.updateTranslation();
-		libraryPart.updateTranslation();
-		tabsPart.updateTranslation();
-		updatePalette(false);
-		imagesPart.updateTranslation();
-		soundsPart.updateTranslation();
-	}
-
-	// -----------------------------
-	// Menus
-	//------------------------------
-	public function showFileMenu(b:*):void {
-		var m:Menu = new Menu(null, 'File', CSS.topBarColor(), 28);
-		m.addItem('New', createNewProject);
-		m.addLine();
-
-		// Derived class will handle this
-		addFileMenuItems(b, m);
-
-		m.showOnStage(stage, b.x, topBarPart.bottom() - 1);
-	}
-	
-	public function stopVideo(b:*):void {
-		runtime.stopVideo();
-	}
-
-	protected function addFileMenuItems(b:*, m:Menu):void {
-		m.addItem('Load Project', runtime.selectProjectFile);
-		m.addItem('Save Project', exportProjectToFile);
-		if (runtime.recording || runtime.ready==ReadyLabel.COUNTDOWN || runtime.ready==ReadyLabel.READY) {
-			m.addItem('Stop Video', runtime.stopVideo);
-		} else {
-			m.addItem('Record Project Video', runtime.exportToVideo);
-		}
-		if (canUndoRevert()) {
-			m.addLine();
-			m.addItem('Undo Revert', undoRevert);
-		} else if (canRevert()) {
-			m.addLine();
-			m.addItem('Revert', revertToOriginalProject);
-		}
-
-		if (b.lastEvent.shiftKey) {
-			m.addLine();
-			m.addItem('Save Project Summary', saveSummary);
-			m.addItem('Show version details', showVersionDetails);
-		}
-		if (b.lastEvent.shiftKey && jsEnabled) {
-			m.addLine();
-			m.addItem('Import experimental extension', function ():void {
-				function loadJSExtension(dialog:DialogBox):void {
-					var url:String = dialog.getField('URL').replace(/^\s+|\s+$/g, '');
-					if (url.length == 0) return;
-					externalCall('ScratchExtensions.loadExternalJS', null, url);
-				}
-
-				var d:DialogBox = new DialogBox(loadJSExtension);
-				d.addTitle('Load Javascript Scratch Extension');
-				d.addField('URL', 120);
-				d.addAcceptCancelButtons('Load');
-				d.showOnStage(app.stage);
-			});
-		}
-	}
-
-	public function showEditMenu(b:*):void {
-		var m:Menu = new Menu(null, 'More', CSS.topBarColor(), 28);
-		m.addItem('Undelete', runtime.undelete, runtime.canUndelete());
-		m.addLine();
-		m.addItem('Small stage layout', toggleSmallStage, true, stageIsContracted);
-		m.addItem('Turbo mode', toggleTurboMode, true, interp.turboMode);
-		addEditMenuItems(b, m);
-		var p:Point = b.localToGlobal(new Point(0, 0));
-		m.showOnStage(stage, b.x, topBarPart.bottom() - 1);
-	}
-
-	protected function addEditMenuItems(b:*, m:Menu):void {
-		m.addLine();
-		m.addItem('Edit block colors', editBlockColors);
-	}
-
-	protected function editBlockColors():void {
-		var d:DialogBox = new DialogBox();
-		d.addTitle('Edit Block Colors');
-		d.addWidget(new BlockColorEditor());
-		d.addButton('Close', d.cancel);
-		d.showOnStage(stage, true);
-	}
-
-	protected function canExportInternals():Boolean {
-		return false;
-	}
-
-	private function showAboutDialog():void {
-		DialogBox.notify(
-				'Scratch 2.0 ' + versionString,
-				'\n\nCopyright © 2012 MIT Media Laboratory' +
-				'\nAll rights reserved.' +
-				'\n\nPlease do not distribute!', stage);
-	}
-
-	protected function onNewProject():void {}
-
-	protected function createNewProjectAndThen(callback:Function = null):void {
-		function clearProject():void {
-			startNewProject('', '');
-			setProjectName('Untitled');
-			onNewProject();
-			topBarPart.refresh();
-			stagePart.refresh();
-			if (callback != null) callback();
-		}
-		saveProjectAndThen(clearProject);
-	}
-
-	protected function createNewProject(ignore:* = null):void {
-		createNewProjectAndThen();
-	}
-
-	protected function createNewProjectScratchX(jsCallback:Array):void {
-		createNewProjectAndThen(function():void {
-			externalCallArray(jsCallback);
-		});
-	}
-
-	protected function saveProjectAndThen(postSaveAction:Function = null):void {
-		// Give the user a chance to save their project, if needed, then call postSaveAction.
-		function doNothing():void {
-		}
-
-		function cancel():void {
-			d.cancel();
-		}
-
-		function proceedWithoutSaving():void {
-			d.cancel();
-			postSaveAction()
-		}
-
-		function save():void {
-			d.cancel();
-			exportProjectToFile(false, postSaveAction);
-		}
-
-		if (postSaveAction == null) postSaveAction = doNothing;
-		if (!saveNeeded) {
-			postSaveAction();
-			return;
-		}
-		var d:DialogBox = new DialogBox();
-		d.addTitle('Save project?');
-		d.addButton('Save', save);
-		d.addButton('Don\'t save', proceedWithoutSaving);
-		d.addButton('Cancel', cancel);
-		d.showOnStage(stage);
-	}
-
-	public function exportProjectToFile(fromJS:Boolean = false, saveCallback:Function = null):void {
-		function squeakSoundsConverted():void {
-			scriptsPane.saveScripts(false);
-			var projectType:String = extensionManager.hasExperimentalExtensions() ? '.sbx' : '.sb2';
-			var defaultName:String = StringUtil.trim(projectName());
-			defaultName = ((defaultName.length > 0) ? defaultName : 'project') + projectType;
-			var zipData:ByteArray = projIO.encodeProjectAsZipFile(stagePane);
-			var file:FileReference = new FileReference();
-			file.addEventListener(Event.COMPLETE, fileSaved);
-			file.save(zipData, fixFileName(defaultName));
-		}
-
-		function fileSaved(e:Event):void {
-			if (!fromJS) setProjectName(e.target.name);
-			if (isExtensionDevMode) {
-				// Some versions of the editor think of this as an "export" and some think of it as a "save"
-				saveNeeded = false;
-			}
-			if (saveCallback != null) saveCallback();
-		}
-
-		if (loadInProgress) return;
-		var projIO:ProjectIO = new ProjectIO(this);
-		projIO.convertSqueakSounds(stagePane, squeakSoundsConverted);
-	}
-
-	public static function fixFileName(s:String):String {
-		// Replace illegal characters in the given string with dashes.
-		const illegal:String = '\\/:*?"<>|%';
-		var result:String = '';
-		for (var i:int = 0; i < s.length; i++) {
-			var ch:String = s.charAt(i);
-			if ((i == 0) && ('.' == ch)) ch = '-'; // don't allow leading period
-			result += (illegal.indexOf(ch) > -1) ? '-' : ch;
-		}
-		return result;
-	}
-
-	public function saveSummary():void {
-		var name:String = (projectName() || "project") + ".txt";
-		var file:FileReference = new FileReference();
-		file.save(stagePane.getSummary(), fixFileName(name));
-	}
-
-	public function toggleSmallStage():void {
-		setSmallStageMode(!stageIsContracted);
-	}
-
-	public function toggleTurboMode():void {
-		interp.turboMode = !interp.turboMode;
-		stagePart.refresh();
-	}
-
-	public function handleTool(tool:String, evt:MouseEvent):void {
-	}
-
-	public function showBubble(text:String, x:* = null, y:* = null, width:Number = 0):void {
-		if (x == null) x = stage.mouseX;
-		if (y == null) y = stage.mouseY;
-		gh.showBubble(text, Number(x), Number(y), width);
-	}
-
-	// TODO: calculate field width for up to 40 hex digits of CSS.normalTextFont
-	protected const kGitHashFieldWidth:int = 7 * 41;
-	protected function makeVersionDetailsDialog():DialogBox {
-		var d:DialogBox = new DialogBox();
-		d.addTitle('Version Details');
-		d.addField('GPU enabled', kGitHashFieldWidth, SCRATCH::allow3d);
-		d.addField('scratch-flash', kGitHashFieldWidth, SCRATCH::revision);
-		return d;
-	}
-
-	protected function showVersionDetails():void {
-		var versionDetailsBox:DialogBox = makeVersionDetailsDialog();
-		versionDetailsBox.addButton('OK', versionDetailsBox.accept);
-		versionDetailsBox.showOnStage(stage);
-	}
-
-	// -----------------------------
-	// Project Management and Sign in
-	//------------------------------
-
-	public function setLanguagePressed(b:IconButton):void {
-		function setLanguage(lang:String):void {
-			Translator.setLanguage(lang);
-			languageChanged = true;
-		}
-
-		if (Translator.languages.length == 0) return; // empty language list
-		var m:Menu = new Menu(setLanguage, 'Language', CSS.topBarColor(), 28);
-		if (b.lastEvent.shiftKey) {
-			m.addItem('import translation file');
-			m.addItem('set font size');
-			m.addLine();
-		}
-		for each (var entry:Array in Translator.languages) {
-			m.addItem(entry[1], entry[0]);
-		}
-		var p:Point = b.localToGlobal(new Point(0, 0));
-		m.showOnStage(stage, b.x, topBarPart.bottom() - 1);
-	}
-
-	public function startNewProject(newOwner:String, newID:String):void {
-		runtime.installNewProject();
-		projectOwner = newOwner;
-		projectID = newID;
-		projectIsPrivate = true;
-	}
-
-	// -----------------------------
-	// Save status
-	//------------------------------
-
-	public var saveNeeded:Boolean;
-
-	public function setSaveNeeded(saveNow:Boolean = false):void {
-		saveNow = false;
-		// Set saveNeeded flag and update the status string.
-		saveNeeded = true;
-		if (!wasEdited) saveNow = true; // force a save on first change
-		clearRevertUndo();
-	}
-
-	protected function clearSaveNeeded():void {
-		// Clear saveNeeded flag and update the status string.
-		function twoDigits(n:int):String {
-			return ((n < 10) ? '0' : '') + n
-		}
-
-		saveNeeded = false;
-		wasEdited = true;
-	}
-
-	// -----------------------------
-	// Project Reverting
-	//------------------------------
-
-	protected var originalProj:ByteArray;
-	private var revertUndo:ByteArray;
-
-	public function saveForRevert(projData:ByteArray, isNew:Boolean, onServer:Boolean = false):void {
-		originalProj = projData;
-		revertUndo = null;
-	}
-
-	protected function doRevert():void {
-		runtime.installProjectFromData(originalProj, false);
-	}
-
-	protected function revertToOriginalProject():void {
-		function preDoRevert():void {
-			revertUndo = new ProjectIO(Scratch.app).encodeProjectAsZipFile(stagePane);
-			doRevert();
-		}
-
-		if (!originalProj) return;
-		DialogBox.confirm('Throw away all changes since opening this project?', stage, preDoRevert);
-	}
-
-	protected function undoRevert():void {
-		if (!revertUndo) return;
-		runtime.installProjectFromData(revertUndo, false);
-		revertUndo = null;
-	}
-
-	protected function canRevert():Boolean {
-		return originalProj != null
-	}
-
-	protected function canUndoRevert():Boolean {
-		return revertUndo != null
-	}
-
-	private function clearRevertUndo():void {
-		revertUndo = null
-	}
-
-	public function addNewSprite(spr:ScratchSprite, showImages:Boolean = false, atMouse:Boolean = false):void {
-		var c:ScratchCostume, byteCount:int;
-		for each (c in spr.costumes) {
-			if (!c.baseLayerData) c.prepareToSave()
-			byteCount += c.baseLayerData.length;
-		}
-		if (!okayToAdd(byteCount)) return; // not enough room
-		spr.objName = stagePane.unusedSpriteName(spr.objName);
-		spr.indexInLibrary = 1000000; // add at end of library
-		spr.setScratchXY(int(200 * Math.random() - 100), int(100 * Math.random() - 50));
-		if (atMouse) spr.setScratchXY(stagePane.scratchMouseX(), stagePane.scratchMouseY());
-		stagePane.addChild(spr);
-		spr.updateCostume();
-		selectSprite(spr);
-		setTab(showImages ? 'images' : 'scripts');
-		setSaveNeeded(true);
-		libraryPart.refresh();
-		for each (c in spr.costumes) {
-			if (ScratchCostume.isSVGData(c.baseLayerData)) c.setSVGData(c.baseLayerData, false);
-		}
-	}
-
-	public function addSound(snd:ScratchSound, targetObj:ScratchObj = null):void {
-		if (snd.soundData && !okayToAdd(snd.soundData.length)) return; // not enough room
-		if (!targetObj) targetObj = viewedObj();
-		snd.soundName = targetObj.unusedSoundName(snd.soundName);
-		targetObj.sounds.push(snd);
-		setSaveNeeded(true);
-		if (targetObj == viewedObj()) {
-			soundsPart.selectSound(snd);
-			setTab('sounds');
-		}
-	}
-
-	public function addCostume(c:ScratchCostume, targetObj:ScratchObj = null):void {
-		if (!c.baseLayerData) c.prepareToSave();
-		if (!okayToAdd(c.baseLayerData.length)) return; // not enough room
-		if (!targetObj) targetObj = viewedObj();
-		c.costumeName = targetObj.unusedCostumeName(c.costumeName);
-		targetObj.costumes.push(c);
-		targetObj.showCostumeNamed(c.costumeName);
-		setSaveNeeded(true);
-		if (targetObj == viewedObj()) setTab('images');
-	}
-
-	public function okayToAdd(newAssetBytes:int):Boolean {
-		// Return true if there is room to add an asset of the given size.
-		// Otherwise, return false and display a warning dialog.
-		const assetByteLimit:int = 50 * 1024 * 1024; // 50 megabytes
-		var assetByteCount:int = newAssetBytes;
-		for each (var obj:ScratchObj in stagePane.allObjects()) {
-			for each (var c:ScratchCostume in obj.costumes) {
-				if (!c.baseLayerData) c.prepareToSave();
-				assetByteCount += c.baseLayerData.length;
-			}
-			for each (var snd:ScratchSound in obj.sounds) assetByteCount += snd.soundData.length;
-		}
-		if (assetByteCount > assetByteLimit) {
-			var overBy:int = Math.max(1, (assetByteCount - assetByteLimit) / 1024);
-			DialogBox.notify(
-					'Sorry!',
-					'Adding that media asset would put this project over the size limit by ' + overBy + ' KB\n' +
-					'Please remove some costumes, backdrops, or sounds before adding additional media.',
-					stage);
-			return false;
-		}
-		return true;
-	}
-
-	// -----------------------------
-	// Flash sprite (helps connect a sprite on the stage with a sprite library entry)
-	//------------------------------
-
-	public function flashSprite(spr:ScratchSprite):void {
-		function doFade(alpha:Number):void {
-			box.alpha = alpha
-		}
-
-		function deleteBox():void {
-			if (box.parent) {
-				box.parent.removeChild(box)
-			}
-		}
-
-		var r:Rectangle = spr.getVisibleBounds(this);
-		var box:Shape = new Shape();
-		box.graphics.lineStyle(3, CSS.overColor, 1, true);
-		box.graphics.beginFill(0x808080);
-		box.graphics.drawRoundRect(0, 0, r.width, r.height, 12, 12);
-		box.x = r.x;
-		box.y = r.y;
-		addChild(box);
-		Transition.cubic(doFade, 1, 0, 0.5, deleteBox);
-	}
-
-	// -----------------------------
-	// Download Progress
-	//------------------------------
-
-	public function addLoadProgressBox(title:String):void {
-		removeLoadProgressBox();
-		lp = new LoadProgress();
-		lp.setTitle(title);
-		stage.addChild(lp);
-		fixLoadProgressLayout();
-	}
-
-	public function removeLoadProgressBox():void {
-		if (lp && lp.parent) lp.parent.removeChild(lp);
-		lp = null;
-	}
-
-	private function fixLoadProgressLayout():void {
-		if (!lp) return;
-		var p:Point = stagePane.localToGlobal(new Point(0, 0));
-		lp.scaleX = stagePane.scaleX;
-		lp.scaleY = stagePane.scaleY;
-		lp.x = int(p.x + ((stagePane.width - lp.width) / 2));
-		lp.y = int(p.y + ((stagePane.height - lp.height) / 2));
-	}
-
-	// -----------------------------
-	// Camera Dialog
-	//------------------------------
-
-	public function openCameraDialog(savePhoto:Function):void {
-		closeCameraDialog();
-		cameraDialog = new CameraDialog(savePhoto);
-		cameraDialog.fixLayout();
-		cameraDialog.x = (stage.stageWidth - cameraDialog.width) / 2;
-		cameraDialog.y = (stage.stageHeight - cameraDialog.height) / 2;
-		addChild(cameraDialog);
-	}
-
-	public function closeCameraDialog():void {
-		if (cameraDialog) {
-			cameraDialog.closeDialog();
-			cameraDialog = null;
-		}
-	}
-
-	// Misc.
-	public function createMediaInfo(obj:*, owningObj:ScratchObj = null):MediaInfo {
-		return new MediaInfo(obj, owningObj);
-	}
-
-	static public function loadSingleFile(fileLoaded:Function, filter:FileFilter = null):void {
-		function fileSelected(event:Event):void {
-			if (fileList.fileList.length > 0) {
-				var file:FileReference = FileReference(fileList.fileList[0]);
-				file.addEventListener(Event.COMPLETE, fileLoaded);
-				file.load();
-			}
-		}
-
-		var fileList:FileReferenceList = new FileReferenceList();
-		fileList.addEventListener(Event.SELECT, fileSelected);
-		try {
-			// Ignore the exception that happens when you call browse() with the file browser open
-			fileList.browse(filter != null ? [filter] : null);
-		} catch (e:*) {
-		}
-	}
-
-	// -----------------------------
-	// External Interface abstraction
-	//------------------------------
-
-	public function externalInterfaceAvailable():Boolean {
-		return ExternalInterface.available;
-	}
-
-	public function externalCall(functionName:String, returnValueCallback:Function = null, ...args):void {
-		args.unshift(functionName);
-		var retVal:*;
-		try {
-			retVal = ExternalInterface.call.apply(ExternalInterface, args);
-		}
-		catch (e:Error)
-		{
-			logException(e);
-			// fall through to below
-		}
-		if (returnValueCallback != null) {
-			returnValueCallback(retVal);
-		}
-	}
-
-	public function addExternalCallback(functionName:String, closure:Function):void {
-		ExternalInterface.addCallback(functionName, closure);
-	}
-
-	// jsCallbackArray is: [functionName, arg1, arg2...] where args are optional.
-	// TODO: rewrite all versions of externalCall in terms of this
-	public function externalCallArray(jsCallbackArray:Array, returnValueCallback:Function = null):void {
-		var args:Array = jsCallbackArray.concat(); // clone
-		args.splice(1, 0, returnValueCallback);
-		externalCall.apply(this, args);
-	}
-}
-//}
+(function() {
+  var Program = {};
+  Program["Scratch"] = function(module, exports) {
+    var Scratch;
+    module.inject = function() {
+      Scratch = module.import('', 'Scratch');
+    };
+
+    var Scratch = function() {
+      this.$init();
+      SVGTool.setStage(stage);
+      loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, this.uncaughtErrorHandler);
+      Scratch.app = this;
+
+      // This one must finish before most other queries can start, so do it separately
+      this.determineJSAccess();
+    };
+
+    Scratch.prototype = Object.create(Sprite.prototype);
+
+    Scratch.versionString = null;
+    Scratch.app = null;
+    Scratch.fixFileName = function(s) {
+      // Replace illegal characters in the given string with dashes.
+      var illegal = '\\/:*?"<>|%';
+      var result = '';
+      for (var i = 0; i < s.length; i++) {
+        var ch = s.charAt(i);
+        if ((i == 0) && ('.' == ch)) ch = '-'; // don't allow leading period
+        result += (illegal.indexOf(ch) > -1) ? '-' : ch;
+      }
+      return result;
+    };
+    Scratch.loadSingleFile = function(fileLoaded, filter) {
+      filter = AS3JS.Utils.getDefaultValue(filter, null);
+
+      function fileSelected(event) {
+        if (fileList.fileList.length > 0) {
+          var file = FileReference(fileList.fileList[0]);
+          file.addEventListener(Event.COMPLETE, fileLoaded);
+          file.load();
+        }
+      }
+
+      var fileList = new FileReferenceList();
+      fileList.addEventListener(Event.SELECT, fileSelected);
+      try {
+        // Ignore the exception that happens when you call browse() with the file browser open
+        fileList.browse(filter != null ? [filter] : null);
+      } catch (e: * ) {}
+    };
+
+    Scratch.$cinit = function() {
+      Scratch.versionString = 'v461.2';
+      Scratch.app = null;
+
+    };
+
+    Scratch.prototype.get_usesUserNameBlock = function() {
+      return _usesUserNameBlock;
+    };
+    Scratch.prototype.set_usesUserNameBlock = function(value) {
+      _usesUserNameBlock = value;
+      this.stagePart.refresh();
+    };
+    Scratch.prototype.$init = function() {
+      this.render3D = null;
+      this.runtime = null;
+      this.interp = null;
+      this.extensionManager = null;
+      this.server = null;
+      this.gh = null;
+      this.viewedObject = null;
+      this.playerBG = null;
+      this.palette = null;
+      this.scriptsPane = null;
+      this.stagePane = null;
+      this.mediaLibrary = null;
+      this.lp = null;
+      this.cameraDialog = null;
+      this.libraryPart = null;
+      this.topBarPart = null;
+      this.stagePart = null;
+      this.tabsPart = null;
+      this.scriptsPart = null;
+      this.imagesPart = null;
+      this.soundsPart = null;
+      this.logger = new Log(16);
+      this.pendingExtensionURLs = null;
+      this.debugRect = null;
+      this.modalOverlay = null;
+      this.originalProj = null;
+      this.revertUndo = null;
+    };
+    Scratch.prototype.hostProtocol = 'http';
+    Scratch.prototype.editMode = false;
+    Scratch.prototype.isOffline = false;
+    Scratch.prototype.isSmallPlayer = false;
+    Scratch.prototype.stageIsContracted = false;
+    Scratch.prototype.isIn3D = false;
+    Scratch.prototype.render3D = null;
+    Scratch.prototype.isArmCPU = false;
+    Scratch.prototype.jsEnabled = false;
+    Scratch.prototype.ignoreResize = false;
+    Scratch.prototype.isExtensionDevMode = false;
+    Scratch.prototype.isMicroworld = false;
+    Scratch.prototype.presentationScale = 0;
+    Scratch.prototype.runtime = null;
+    Scratch.prototype.interp = null;
+    Scratch.prototype.extensionManager = null;
+    Scratch.prototype.server = null;
+    Scratch.prototype.gh = null;
+    Scratch.prototype.projectID = '';
+    Scratch.prototype.projectOwner = '';
+    Scratch.prototype.projectIsPrivate = false;
+    Scratch.prototype.oldWebsiteURL = '';
+    Scratch.prototype.loadInProgress = false;
+    Scratch.prototype.debugOps = false;
+    Scratch.prototype.debugOpCmd = '';
+    Scratch.prototype.autostart = false;
+    Scratch.prototype.viewedObject = null;
+    Scratch.prototype.lastTab = 'scripts';
+    Scratch.prototype.wasEdited = false;
+    Scratch.prototype.languageChanged = false;
+    Scratch.prototype.playerBG = null;
+    Scratch.prototype.palette = null;
+    Scratch.prototype.scriptsPane = null;
+    Scratch.prototype.stagePane = null;
+    Scratch.prototype.mediaLibrary = null;
+    Scratch.prototype.lp = null;
+    Scratch.prototype.cameraDialog = null;
+    Scratch.prototype.libraryPart = null;
+    Scratch.prototype.topBarPart = null;
+    Scratch.prototype.stagePart = null;
+    Scratch.prototype.tabsPart = null;
+    Scratch.prototype.scriptsPart = null;
+    Scratch.prototype.imagesPart = null;
+    Scratch.prototype.soundsPart = null;
+    Scratch.prototype.tipsBarClosedWidth = 17;
+    Scratch.prototype.logger = null;
+    Scratch.prototype.determineJSAccess = function() {
+      if (this.externalInterfaceAvailable()) {
+        try {
+          this.externalCall('function(){return true;}', this.jsAccessDetermined);
+          return; // wait for callback
+        } catch (e: Error) {}
+      }
+      this.jsAccessDetermined(false);
+    };
+    Scratch.prototype.jsAccessDetermined = function(result) {
+      this.jsEnabled = result;
+      this.initialize();
+    };
+    Scratch.prototype.initialize = function() {
+      this.isOffline = !URLUtil.isHttpURL(loaderInfo.url);
+      this.hostProtocol = URLUtil.getProtocol(loaderInfo.url);
+
+      this.isExtensionDevMode = (loaderInfo.parameters['extensionDevMode'] == 'true');
+      this.isMicroworld = (loaderInfo.parameters['microworldMode'] == 'true');
+
+      this.checkFlashVersion();
+      this.initServer();
+
+      stage.align = StageAlign.TOP_LEFT;
+      stage.scaleMode = StageScaleMode.NO_SCALE;
+      stage.frameRate = 30;
+
+      if (stage.hasOwnProperty('color')) {
+        // Stage doesn't have a color property on Air 2.6, and Linux throws if you try to set it anyway.
+        stage['color'] = CSS.backgroundColor();
+      }
+
+      Block.setFonts(10, 9, true, 0); // default font sizes
+      Block.MenuHandlerFunction = BlockMenus.BlockMenuHandler;
+      CursorTool.init(this);
+      Scratch.app = this;
+
+      this.stagePane = this.getScratchStage();
+      this.gh = new GestureHandler(this, (loaderInfo.parameters['inIE'] == 'true'));
+      this.initInterpreter();
+      this.initRuntime();
+      this.initExtensionManager();
+      Translator.initializeLanguageList();
+
+      this.playerBG = new Shape(); // create, but don't add
+      this.addParts();
+
+      this.server.getSelectedLang(Translator.setLanguageValue);
+
+      stage.addEventListener(MouseEvent.MOUSE_DOWN, this.gh.mouseDown);
+      stage.addEventListener(MouseEvent.MOUSE_MOVE, this.gh.mouseMove);
+      stage.addEventListener(MouseEvent.MOUSE_UP, this.gh.mouseUp);
+      stage.addEventListener(MouseEvent.MOUSE_WHEEL, this.gh.mouseWheel);
+      stage.addEventListener('rightClick', this.gh.rightMouseClick);
+
+      stage.addEventListener(KeyboardEvent.KEY_UP, this.runtime.keyUp);
+      stage.addEventListener(KeyboardEvent.KEY_DOWN, this.keyDown); // to handle escape key
+      stage.addEventListener(Event.ENTER_FRAME, this.step);
+      stage.addEventListener(Event.RESIZE, this.onResize);
+
+      this.setEditMode(this.startInEditMode());
+
+      // install project before calling fixLayout()
+      if (this.editMode) this.runtime.installNewProject();
+      else this.runtime.installEmptyProject();
+
+      this.fixLayout();
+      //Analyze.collectAssets(0, 119110);
+      //Analyze.checkProjects(56086, 64220);
+      //Analyze.countMissingAssets();
+
+      this.handleStartupParameters();
+    };
+    Scratch.prototype.handleStartupParameters = function() {
+      this.setupExternalInterface(false);
+      this.jsEditorReady();
+    };
+    Scratch.prototype.setupExternalInterface = function(oldWebsitePlayer) {
+      if (!this.jsEnabled) return;
+
+      this.addExternalCallback('ASloadExtension', this.extensionManager.loadRawExtension);
+      this.addExternalCallback('ASextensionCallDone', this.extensionManager.callCompleted);
+      this.addExternalCallback('ASextensionReporterDone', this.extensionManager.reporterCompleted);
+      this.addExternalCallback('AScreateNewProject', this.createNewProjectScratchX);
+
+      if (this.isExtensionDevMode) {
+        this.addExternalCallback('ASloadGithubURL', this.loadGithubURL);
+        this.addExternalCallback('ASloadBase64SBX', this.loadBase64SBX);
+        this.addExternalCallback('ASsetModalOverlay', this.setModalOverlay);
+      }
+    };
+    Scratch.prototype.jsEditorReady = function() {
+      if (this.jsEnabled) {
+        this.externalCall('JSeditorReady', function(success) {
+          if (!success) this.jsThrowError('Calling JSeditorReady() failed.');
+        });
+      }
+    };
+    Scratch.prototype.loadSingleGithubURL = function(url) {
+      url = StringUtil.trim(unescape(url));
+
+      function handleComplete(e) {
+        this.runtime.installProjectFromData(sbxLoader.data);
+        if (StringUtil.trim(this.projectName()).length == 0) {
+          var newProjectName = url;
+          var index = newProjectName.indexOf('?');
+          if (index > 0) newProjectName = newProjectName.slice(0, index);
+          index = newProjectName.lastIndexOf('/');
+          if (index > 0) newProjectName = newProjectName.substr(index + 1);
+          index = newProjectName.lastIndexOf('.sbx');
+          if (index > 0) newProjectName = newProjectName.slice(0, index);
+          this.setProjectName(newProjectName);
+        }
+      }
+
+      function handleError(e) {
+        this.jsThrowError('Failed to load SBX: ' + e.toString());
+      }
+
+      var fileExtension = url.substr(url.lastIndexOf('.')).toLowerCase();
+      if (fileExtension == '.js') {
+        this.externalCall('ScratchExtensions.loadExternalJS', null, url);
+        return;
+      }
+
+      // Otherwise assume it's a project (SB2, SBX, etc.)
+      this.loadInProgress = true;
+      var request = new URLRequest(url);
+      var sbxLoader = new URLLoader(request);
+      sbxLoader.dataFormat = URLLoaderDataFormat.BINARY;
+      sbxLoader.addEventListener(Event.COMPLETE, handleComplete);
+      sbxLoader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, handleError);
+      sbxLoader.addEventListener(IOErrorEvent.IO_ERROR, handleError);
+      sbxLoader.load(request);
+    };
+    Scratch.prototype.pendingExtensionURLs = null;
+    Scratch.prototype.loadGithubURL = function(urlOrArray) {
+      if (!this.isExtensionDevMode) return;
+
+      var url;
+      var urlArray = urlOrArray as Array;
+      if (urlArray) {
+        var urlCount = urlArray.length;
+        var extensionURLs = [];
+        var projectURL;
+        var index;
+
+        // Filter URLs: allow at most one project file, and wait until it loads before loading extensions.
+        for (index = 0; index < urlCount; ++index) {
+          url = StringUtil.trim(unescape(urlArray[index]));
+          if (StringUtil.endsWith(url.toLowerCase(), '.js')) {
+            extensionURLs.push(url);
+          } else if (url.length > 0) {
+            if (projectURL) {
+              this.jsThrowError("Ignoring extra project URL: " + projectURL);
+            }
+            projectURL = StringUtil.trim(url);
+          }
+        }
+        if (projectURL) {
+          this.pendingExtensionURLs = extensionURLs;
+          this.loadSingleGithubURL(projectURL);
+          // warning will be shown later
+        } else {
+          urlCount = extensionURLs.length;
+          for (index = 0; index < urlCount; ++index) {
+            this.loadSingleGithubURL(extensionURLs[index]);
+          }
+          this.externalCall('JSshowWarning');
+        }
+      } else {
+        url = urlOrArray as String;
+        this.loadSingleGithubURL(url);
+        this.externalCall('JSshowWarning');
+      }
+    };
+    Scratch.prototype.loadBase64SBX = function(base64) {
+      var sbxData = Base64Encoder.decode(base64);
+      Scratch.app.setProjectName('');
+      this.runtime.installProjectFromData(sbxData);
+    };
+    Scratch.prototype.initTopBarPart = function() {
+      this.topBarPart = new TopBarPart(this);
+    };
+    Scratch.prototype.initScriptsPart = function() {
+      this.scriptsPart = new ScriptsPart(this);
+    };
+    Scratch.prototype.initImagesPart = function() {
+      this.imagesPart = new ImagesPart(this);
+    };
+    Scratch.prototype.initInterpreter = function() {
+      this.interp = new Interpreter(this);
+    };
+    Scratch.prototype.initRuntime = function() {
+      this.runtime = new ScratchRuntime(this, this.interp);
+    };
+    Scratch.prototype.initExtensionManager = function() {
+      if (this.isExtensionDevMode) {
+        this.extensionManager = new ExtensionDevManager(this);
+      } else {
+        this.extensionManager = new ExtensionManager(this);
+      }
+    };
+    Scratch.prototype.initServer = function() {
+      this.server = new Server();
+    };
+    Scratch.prototype.showTip = function(tipName) {};
+    Scratch.prototype.closeTips = function() {};
+    Scratch.prototype.reopenTips = function() {};
+    Scratch.prototype.tipsWidth = function() {
+      return 0;
+    };
+    Scratch.prototype.startInEditMode = function() {
+      return this.isOffline || this.isExtensionDevMode;
+    };
+    Scratch.prototype.getMediaLibrary = function(type, whenDone) {
+      return new MediaLibrary(this, type, whenDone);
+    };
+    Scratch.prototype.getMediaPane = function(app, type) {
+      return new MediaPane(app, type);
+    };
+    Scratch.prototype.getScratchStage = function() {
+      return new ScratchStage();
+    };
+    Scratch.prototype.getPaletteBuilder = function() {
+      return new PaletteBuilder(this);
+    };
+    Scratch.prototype.uncaughtErrorHandler = function(event) {
+      if (event.error is Error) {
+        var error = event.error as Error;
+        this.logException(error);
+      } else if (event.error is ErrorEvent) {
+        var errorEvent = event.error as ErrorEvent;
+        this.log(LogLevel.ERROR, errorEvent.toString());
+      }
+    };
+    Scratch.prototype.log = function(severity, messageKey, extraData) {
+      extraData = AS3JS.Utils.getDefaultValue(extraData, null);
+      return this.logger.log(severity, messageKey, extraData);
+    };
+    Scratch.prototype.logException = function(e) {
+      this.log(LogLevel.ERROR, e.toString());
+    };
+    Scratch.prototype.logMessage = function(msg, extra_data) {
+      extra_data = AS3JS.Utils.getDefaultValue(extra_data, null);
+      this.log(LogLevel.ERROR, msg, extra_data);
+    };
+    Scratch.prototype.loadProjectFailed = function() {
+      this.loadInProgress = false;
+    };
+    Scratch.prototype.jsThrowError = function(s) {
+      // Throw the given string as an error in the browser. Errors on the production site are logged.
+      var errorString = 'SWF Error: ' + s;
+      this.log(LogLevel.WARNING, errorString);
+      if (this.jsEnabled) {
+        this.externalCall('JSthrowError', null, errorString);
+      }
+    };
+    Scratch.prototype.checkFlashVersion = function() {
+      SCRATCH::allow3d {
+        if (Capabilities.playerType != "Desktop" || Capabilities.version.indexOf('IOS') === 0) {
+          var versionString = Capabilities.version.substr(Capabilities.version.indexOf(' ') + 1);
+          var versionParts = versionString.split(',');
+          var majorVersion = parseInt(versionParts[0]);
+          var minorVersion = parseInt(versionParts[1]);
+          if ((majorVersion > 11 || (majorVersion == 11 && minorVersion >= 7)) && !this.isArmCPU && Capabilities.cpuArchitecture == 'x86') {
+            this.render3D = new DisplayObjectContainerIn3D();
+            this.render3D.setStatusCallback(this.handleRenderCallback);
+            return;
+          }
+        }
+      }
+
+      this.render3D = null;
+    };
+    Scratch.prototype.handleRenderCallback = function(enabled) {
+      if (!enabled) {
+        this.go2D();
+        this.render3D = null;
+      } else {
+        for (var i = 0; i < this.stagePane.numChildren; ++i) {
+          var spr = (this.stagePane.getChildAt(i) as ScratchSprite);
+          if (spr) {
+            spr.clearCachedBitmap();
+            spr.updateCostume();
+            spr.applyFilters();
+          }
+        }
+        this.stagePane.clearCachedBitmap();
+        this.stagePane.updateCostume();
+        this.stagePane.applyFilters();
+      }
+    };
+    Scratch.prototype.clearCachedBitmaps = function() {
+      for (var i = 0; i < this.stagePane.numChildren; ++i) {
+        var spr = (this.stagePane.getChildAt(i) as ScratchSprite);
+        if (spr) spr.clearCachedBitmap();
+      }
+      this.stagePane.clearCachedBitmap();
+
+      // unsupported technique that seems to force garbage collection
+      try {
+        new LocalConnection().connect('foo');
+        new LocalConnection().connect('foo');
+      } catch (e: Error) {}
+    };
+    Scratch.prototype.go3D = function() {
+      if (!this.render3D || this.isIn3D) return;
+
+      var i = this.stagePart.getChildIndex(this.stagePane);
+      this.stagePart.removeChild(this.stagePane);
+      this.render3D.setStage(this.stagePane, this.stagePane.penLayer);
+      this.stagePart.addChildAt(this.stagePane, i);
+      this.isIn3D = true;
+    };
+    Scratch.prototype.go2D = function() {
+      if (!this.render3D || !this.isIn3D) return;
+
+      var i = this.stagePart.getChildIndex(this.stagePane);
+      this.stagePart.removeChild(this.stagePane);
+      this.render3D.setStage(null, null);
+      this.stagePart.addChildAt(this.stagePane, i);
+      this.isIn3D = false;
+      for (i = 0; i < this.stagePane.numChildren; ++i) {
+        var spr = (this.stagePane.getChildAt(i) as ScratchSprite);
+        if (spr) {
+          spr.clearCachedBitmap();
+          spr.updateCostume();
+          spr.applyFilters();
+        }
+      }
+      this.stagePane.clearCachedBitmap();
+      this.stagePane.updateCostume();
+      this.stagePane.applyFilters();
+    };
+    Scratch.prototype.debugRect = null;
+    Scratch.prototype.showDebugRect = function(r) {
+      // Used during debugging...
+      var p = this.stagePane.localToGlobal(new Point(0, 0));
+      if (!this.debugRect) this.debugRect = new Shape();
+      var g = this.debugRect.graphics;
+      g.clear();
+      if (r) {
+        g.lineStyle(2, 0xFFFF00);
+        g.drawRect(p.x + r.x, p.y + r.y, r.width, r.height);
+        addChild(this.debugRect);
+      }
+    };
+    Scratch.prototype.strings = function() {
+      return [
+        'a copy of the project file on your computer.',
+        'Project not saved!', 'Save now', 'Not saved; project did not load.',
+        'Save project?', 'Don\'t save',
+        'Save now', 'Saved',
+        'Revert', 'Undo Revert', 'Reverting...',
+        'Throw away all changes since opening this project?',
+      ];
+    };
+    Scratch.prototype.viewedObj = function() {
+      return this.viewedObject;
+    };
+    Scratch.prototype.stageObj = function() {
+      return this.stagePane;
+    };
+    Scratch.prototype.projectName = function() {
+      return this.stagePart.projectName();
+    };
+    Scratch.prototype.highlightSprites = function(sprites) {
+      this.libraryPart.highlight(sprites);
+    };
+    Scratch.prototype.refreshImageTab = function(fromEditor) {
+      this.imagesPart.refresh(fromEditor);
+    };
+    Scratch.prototype.refreshSoundTab = function() {
+      this.soundsPart.refresh();
+    };
+    Scratch.prototype.selectCostume = function() {
+      this.imagesPart.selectCostume();
+    };
+    Scratch.prototype.selectSound = function(snd) {
+      this.soundsPart.selectSound(snd);
+    };
+    Scratch.prototype.clearTool = function() {
+      CursorTool.setTool(null);
+      this.topBarPart.clearToolButtons();
+    };
+    Scratch.prototype.tabsRight = function() {
+      return this.tabsPart.x + this.tabsPart.w;
+    };
+    Scratch.prototype.enableEditorTools = function(flag) {
+      this.imagesPart.editor.enableTools(flag);
+    };
+    Scratch.prototype.updatePalette = function(clearCaches) {
+      clearCaches = AS3JS.Utils.getDefaultValue(clearCaches, true);
+      // Note: updatePalette() is called after changing variable, list, or procedure
+      // definitions, so this is a convenient place to clear the interpreter's caches.
+      if (this.isShowing(this.scriptsPart)) this.scriptsPart.updatePalette();
+      if (clearCaches) this.runtime.clearAllCaches();
+    };
+    Scratch.prototype.setProjectName = function(s) {
+      for (;;) {
+        if (StringUtil.endsWith(s, '.sb')) s = s.slice(0, -3);
+        else if (StringUtil.endsWith(s, '.sb2')) s = s.slice(0, -4);
+        else if (StringUtil.endsWith(s, '.sbx')) s = s.slice(0, -4);
+        else break;
+      }
+      this.stagePart.setProjectName(s);
+    };
+    Scratch.prototype.wasEditing = false;
+    Scratch.prototype.setPresentationMode = function(enterPresentation) {
+      if (this.stagePart.isInPresentationMode() != enterPresentation) {
+        this.presentationModeWasChanged(enterPresentation);
+      }
+    };
+    Scratch.prototype.presentationModeWasChanged = function(enterPresentation) {
+      if (enterPresentation) {
+        this.wasEditing = this.editMode;
+        if (this.wasEditing) {
+          this.setEditMode(false);
+          if (this.jsEnabled) this.externalCall('tip_bar_api.hide');
+        }
+      } else {
+        if (this.wasEditing) {
+          this.setEditMode(true);
+          if (this.jsEnabled) this.externalCall('tip_bar_api.show');
+        }
+      }
+      if (this.isOffline) {
+        stage.displayState = enterPresentation ? StageDisplayState.FULL_SCREEN_INTERACTIVE : StageDisplayState.NORMAL;
+      }
+      for each(var o in this.stagePane.allObjects()) o.applyFilters();
+
+      if (this.lp) this.fixLoadProgressLayout();
+      this.stagePart.presentationModeWasChanged(enterPresentation);
+      this.stagePane.updateCostume();
+      SCRATCH::allow3d {
+        if (this.isIn3D) this.render3D.onStageResize();
+      }
+    };
+    Scratch.prototype.keyDown = function(evt) {
+      // Escape stops drag operations
+      if (!evt.shiftKey && evt.charCode == 27) {
+        this.gh.escKeyDown();
+      }
+      // Escape exists presentation mode.
+      else if ((evt.charCode == 27) && this.stagePart.isInPresentationMode()) {
+        this.setPresentationMode(false);
+      }
+      // Handle enter key
+      //    else if(evt.keyCode == 13 && !stage.focus) {
+      //      stagePart.playButtonPressed(null);
+      //      evt.preventDefault();
+      //      evt.stopImmediatePropagation();
+      //    }
+      // Handle ctrl-m and toggle 2d/3d mode
+      else if (evt.ctrlKey && evt.charCode == 109) {
+        SCRATCH::allow3d {
+          this.isIn3D ? this.go2D() : this.go3D();
+        }
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+      } else {
+        this.runtime.keyDown(evt);
+      }
+    };
+    Scratch.prototype.setSmallStageMode = function(flag) {
+      this.stageIsContracted = flag;
+      this.stagePart.updateRecordingTools();
+      this.fixLayout();
+      this.libraryPart.refresh();
+      this.tabsPart.refresh();
+      this.stagePane.applyFilters();
+      this.stagePane.updateCostume();
+    };
+    Scratch.prototype.projectLoaded = function() {
+      this.removeLoadProgressBox();
+      System.gc();
+      if (this.autostart) this.runtime.startGreenFlags(true);
+      this.loadInProgress = false;
+      this.saveNeeded = false;
+
+      // translate the blocks of the newly loaded project
+      for each(var o in this.stagePane.allObjects()) {
+        o.updateScriptsAfterTranslation();
+      }
+
+      if (this.jsEnabled && this.isExtensionDevMode) {
+        if (this.pendingExtensionURLs) {
+          this.loadGithubURL(this.pendingExtensionURLs);
+          this.pendingExtensionURLs = null;
+        }
+        this.externalCall('JSprojectLoaded');
+      }
+    };
+    Scratch.prototype.resetPlugin = function(whenDone) {
+      if (this.jsEnabled) {
+        this.externalCall('ScratchExtensions.resetPlugin');
+      }
+      if (whenDone != null) {
+        whenDone();
+      }
+    };
+    Scratch.prototype.step = function(e) {
+      // Step the runtime system and all UI components.
+      CachedTimer.clearCachedTimer();
+      this.gh.step();
+      this.runtime.stepRuntime();
+      Transition.step(null);
+      this.stagePart.step();
+      this.libraryPart.step();
+      this.scriptsPart.step();
+      this.imagesPart.step();
+    };
+    Scratch.prototype.updateSpriteLibrary = function(sortByIndex) {
+      sortByIndex = AS3JS.Utils.getDefaultValue(sortByIndex, false);
+      this.libraryPart.refresh()
+    };
+    Scratch.prototype.updateTopBar = function() {
+      this.topBarPart.refresh();
+    };
+    Scratch.prototype.threadStarted = function() {
+      this.stagePart.threadStarted()
+    };
+    Scratch.prototype.selectSprite = function(obj) {
+      if (this.isShowing(this.imagesPart)) this.imagesPart.editor.shutdown();
+      if (this.isShowing(this.soundsPart)) this.soundsPart.editor.shutdown();
+      this.viewedObject = obj;
+      this.libraryPart.refresh();
+      this.tabsPart.refresh();
+      if (this.isShowing(this.imagesPart)) {
+        this.imagesPart.refresh();
+      }
+      if (this.isShowing(this.soundsPart)) {
+        this.soundsPart.currentIndex = 0;
+        this.soundsPart.refresh();
+      }
+      if (this.isShowing(this.scriptsPart)) {
+        this.scriptsPart.updatePalette();
+        this.scriptsPane.viewScriptsFor(obj);
+        this.scriptsPart.updateSpriteWatermark();
+      }
+    };
+    Scratch.prototype.setTab = function(tabName) {
+      if (this.isShowing(this.imagesPart)) this.imagesPart.editor.shutdown();
+      if (this.isShowing(this.soundsPart)) this.soundsPart.editor.shutdown();
+      this.hide(this.scriptsPart);
+      this.hide(this.imagesPart);
+      this.hide(this.soundsPart);
+      if (!this.editMode) return;
+      if (tabName == 'images') {
+        this.show(this.imagesPart);
+        this.imagesPart.refresh();
+      } else if (tabName == 'sounds') {
+        this.soundsPart.refresh();
+        this.show(this.soundsPart);
+      } else if (tabName && (tabName.length > 0)) {
+        tabName = 'scripts';
+        this.scriptsPart.updatePalette();
+        this.scriptsPane.viewScriptsFor(this.viewedObject);
+        this.scriptsPart.updateSpriteWatermark();
+        this.show(this.scriptsPart);
+      }
+      this.show(this.tabsPart);
+      this.show(this.stagePart); // put stage in front
+      this.tabsPart.selectTab(tabName);
+      this.lastTab = tabName;
+      if (this.saveNeeded) this.setSaveNeeded(true); // save project when switching tabs, if needed (but NOT while loading!)
+    };
+    Scratch.prototype.installStage = function(newStage) {
+      var showGreenflagOverlay = this.shouldShowGreenFlag();
+      this.stagePart.installStage(newStage, showGreenflagOverlay);
+      this.selectSprite(newStage);
+      this.libraryPart.refresh();
+      this.setTab('scripts');
+      this.scriptsPart.resetCategory();
+      this.wasEdited = false;
+    };
+    Scratch.prototype.shouldShowGreenFlag = function() {
+      return !(this.autostart || this.editMode);
+    };
+    Scratch.prototype.addParts = function() {
+      this.initTopBarPart();
+      this.stagePart = this.getStagePart();
+      this.libraryPart = this.getLibraryPart();
+      this.tabsPart = new TabsPart(this);
+      this.initScriptsPart();
+      this.initImagesPart();
+      this.soundsPart = new SoundsPart(this);
+      addChild(this.topBarPart);
+      addChild(this.stagePart);
+      addChild(this.libraryPart);
+      addChild(this.tabsPart);
+    };
+    Scratch.prototype.getStagePart = function() {
+      return new StagePart(this);
+    };
+    Scratch.prototype.getLibraryPart = function() {
+      return new LibraryPart(this);
+    };
+    Scratch.prototype.fixExtensionURL = function(javascriptURL) {
+      return javascriptURL;
+    };
+    Scratch.prototype.setEditMode = function(newMode) {
+      Menu.removeMenusFrom(stage);
+      this.editMode = newMode;
+      if (this.editMode) {
+        this.interp.showAllRunFeedback();
+        this.hide(this.playerBG);
+        this.show(this.topBarPart);
+        this.show(this.libraryPart);
+        this.show(this.tabsPart);
+        this.setTab(this.lastTab);
+        this.stagePart.hidePlayButton();
+        this.runtime.edgeTriggersEnabled = true;
+      } else {
+        addChildAt(this.playerBG, 0); // behind everything
+        this.playerBG.visible = false;
+        this.hide(this.topBarPart);
+        this.hide(this.libraryPart);
+        this.hide(this.tabsPart);
+        this.setTab(null); // hides scripts, images, and sounds
+      }
+      this.stagePane.updateListWatchers();
+      this.show(this.stagePart); // put stage in front
+      this.fixLayout();
+      this.stagePart.refresh();
+    };
+    Scratch.prototype.hide = function(obj) {
+      if (obj.parent) obj.parent.removeChild(obj)
+    };
+    Scratch.prototype.show = function(obj) {
+      addChild(obj)
+    };
+    Scratch.prototype.isShowing = function(obj) {
+      return obj.parent != null
+    };
+    Scratch.prototype.onResize = function(e) {
+      if (!this.ignoreResize) this.fixLayout();
+    };
+    Scratch.prototype.fixLayout = function() {
+      var w = stage.stageWidth;
+      var h = stage.stageHeight - 1; // fix to show bottom border...
+
+      w = Math.ceil(w / scaleX);
+      h = Math.ceil(h / scaleY);
+
+      this.updateLayout(w, h);
+    };
+    Scratch.prototype.updateRecordingTools = function(t) {
+      this.stagePart.updateRecordingTools(t);
+    };
+    Scratch.prototype.removeRecordingTools = function() {
+      this.stagePart.removeRecordingTools();
+    };
+    Scratch.prototype.refreshStagePart = function() {
+      this.stagePart.refresh();
+    };
+    Scratch.prototype.updateLayout = function(w, h) {
+      this.topBarPart.x = 0;
+      this.topBarPart.y = 0;
+      this.topBarPart.setWidthHeight(w, 28);
+
+      var extraW = 2;
+      var extraH = this.stagePart.computeTopBarHeight() + 1;
+      if (this.editMode) {
+        // adjust for global scale (from browser zoom)
+
+        if (this.stageIsContracted) {
+          this.stagePart.setWidthHeight(240 + extraW, 180 + extraH, 0.5);
+        } else {
+          this.stagePart.setWidthHeight(480 + extraW, 360 + extraH, 1);
+        }
+        this.stagePart.x = 5;
+        this.stagePart.y = this.isMicroworld ? 5 : this.topBarPart.bottom() + 5;
+        this.fixLoadProgressLayout();
+      } else {
+        this.drawBG();
+        var pad = (w > 550) ? 16 : 0; // add padding for full-screen mode
+        var scale = Math.min((w - extraW - pad) / 480, (h - extraH - pad) / 360);
+        scale = Math.max(0.01, scale);
+        var scaledW = Math.floor((scale * 480) / 4) * 4; // round down to a multiple of 4
+        scale = scaledW / 480;
+        this.presentationScale = scale;
+        var playerW = (scale * 480) + extraW;
+        var playerH = (scale * 360) + extraH;
+        this.stagePart.setWidthHeight(playerW, playerH, scale);
+        this.stagePart.x = int((w - playerW) / 2);
+        this.stagePart.y = int((h - playerH) / 2);
+        this.fixLoadProgressLayout();
+        return;
+      }
+      this.libraryPart.x = this.stagePart.x;
+      this.libraryPart.y = this.stagePart.bottom() + 18;
+      this.libraryPart.setWidthHeight(this.stagePart.w, h - this.libraryPart.y);
+
+      this.tabsPart.x = this.stagePart.right() + 5;
+      if (!this.isMicroworld) {
+        this.tabsPart.y = this.topBarPart.bottom() + 5;
+        this.tabsPart.fixLayout();
+      } else
+        this.tabsPart.visible = false;
+
+      // the content area shows the part associated with the currently selected tab:
+      var contentY = this.tabsPart.y + 27;
+      if (!this.isMicroworld)
+        w -= this.tipsWidth();
+      this.updateContentArea(this.tabsPart.x, contentY, w - this.tabsPart.x - 6, h - contentY - 5, h);
+    };
+    Scratch.prototype.updateContentArea = function(contentX, contentY, contentW, contentH, fullH) {
+      this.imagesPart.x = this.soundsPart.x = this.scriptsPart.x = contentX;
+      this.imagesPart.y = this.soundsPart.y = this.scriptsPart.y = contentY;
+      this.imagesPart.setWidthHeight(contentW, contentH);
+      this.soundsPart.setWidthHeight(contentW, contentH);
+      this.scriptsPart.setWidthHeight(contentW, contentH);
+
+      if (this.mediaLibrary) this.mediaLibrary.setWidthHeight(this.topBarPart.w, fullH);
+
+      SCRATCH::allow3d {
+        if (this.isIn3D) this.render3D.onStageResize();
+      }
+    };
+    Scratch.prototype.drawBG = function() {
+      var g = this.playerBG.graphics;
+      g.clear();
+      g.beginFill(0);
+      g.drawRect(0, 0, stage.stageWidth, stage.stageHeight);
+    };
+    Scratch.prototype.modalOverlay = null;
+    Scratch.prototype.setModalOverlay = function(enableOverlay) {
+      var currentlyEnabled = !!this.modalOverlay;
+      if (enableOverlay != currentlyEnabled) {
+        if (enableOverlay) {
+          function eatEvent(event) {
+            event.stopImmediatePropagation();
+            event.stopPropagation();
+          }
+
+          this.modalOverlay = new Sprite();
+          this.modalOverlay.graphics.beginFill(CSS.backgroundColor_ScratchX, 0.8);
+          this.modalOverlay.graphics.drawRect(0, 0, stage.width, stage.height);
+          this.modalOverlay.addEventListener(MouseEvent.CLICK, eatEvent);
+          this.modalOverlay.addEventListener(MouseEvent.MOUSE_DOWN, eatEvent);
+          if (SCRATCH::allow3d) { // TODO: use a better flag or rename this one
+            // These events are only available in flash 11.2 and above.
+            this.modalOverlay.addEventListener(MouseEvent.RIGHT_CLICK, eatEvent);
+            this.modalOverlay.addEventListener(MouseEvent.RIGHT_MOUSE_DOWN, eatEvent);
+            this.modalOverlay.addEventListener(MouseEvent.MIDDLE_CLICK, eatEvent);
+            this.modalOverlay.addEventListener(MouseEvent.MIDDLE_MOUSE_DOWN, eatEvent);
+          }
+          stage.addChild(this.modalOverlay);
+        } else {
+          stage.removeChild(this.modalOverlay);
+          this.modalOverlay = null;
+        }
+      }
+    };
+    Scratch.prototype.logoButtonPressed = function(b) {
+      if (this.isExtensionDevMode) {
+        this.externalCall('showPage', null, 'home');
+      }
+    };
+    Scratch.prototype.translationChanged = function() {
+      // The translation has changed. Fix scripts and update the UI.
+      // directionChanged is true if the writing direction (e.g. left-to-right) has changed.
+      for each(var o in this.stagePane.allObjects()) {
+        o.updateScriptsAfterTranslation();
+      }
+      var uiLayer = Scratch.app.stagePane.getUILayer();
+      for (var i = 0; i < uiLayer.numChildren; ++i) {
+        var lw = uiLayer.getChildAt(i) as ListWatcher;
+        if (lw) lw.updateTranslation();
+      }
+      this.topBarPart.updateTranslation();
+      this.stagePart.updateTranslation();
+      this.libraryPart.updateTranslation();
+      this.tabsPart.updateTranslation();
+      this.updatePalette(false);
+      this.imagesPart.updateTranslation();
+      this.soundsPart.updateTranslation();
+    };
+    Scratch.prototype.showFileMenu = function(b) {
+      var m = new Menu(null, 'File', CSS.topBarColor(), 28);
+      m.addItem('New', this.createNewProject);
+      m.addLine();
+
+      // Derived class will handle this
+      this.addFileMenuItems(b, m);
+
+      m.showOnStage(stage, b.x, this.topBarPart.bottom() - 1);
+    };
+    Scratch.prototype.stopVideo = function(b) {
+      this.runtime.stopVideo();
+    };
+    Scratch.prototype.addFileMenuItems = function(b, m) {
+      m.addItem('Load Project', this.runtime.selectProjectFile);
+      m.addItem('Save Project', this.exportProjectToFile);
+      if (this.runtime.recording || this.runtime.ready == ReadyLabel.COUNTDOWN || this.runtime.ready == ReadyLabel.READY) {
+        m.addItem('Stop Video', this.runtime.stopVideo);
+      } else {
+        m.addItem('Record Project Video', this.runtime.exportToVideo);
+      }
+      if (this.canUndoRevert()) {
+        m.addLine();
+        m.addItem('Undo Revert', this.undoRevert);
+      } else if (this.canRevert()) {
+        m.addLine();
+        m.addItem('Revert', this.revertToOriginalProject);
+      }
+
+      if (b.lastEvent.shiftKey) {
+        m.addLine();
+        m.addItem('Save Project Summary', this.saveSummary);
+        m.addItem('Show version details', this.showVersionDetails);
+      }
+      if (b.lastEvent.shiftKey && this.jsEnabled) {
+        m.addLine();
+        m.addItem('Import experimental extension', function() {
+          function loadJSExtension(dialog) {
+            var url = dialog.getField('URL').replace(/^\s+|\s+$/g, '');
+            if (url.length == 0) return;
+            this.externalCall('ScratchExtensions.loadExternalJS', null, url);
+          }
+
+          var d = new DialogBox(loadJSExtension);
+          d.addTitle('Load Javascript Scratch Extension');
+          d.addField('URL', 120);
+          d.addAcceptCancelButtons('Load');
+          d.showOnStage(Scratch.app.stage);
+        });
+      }
+    };
+    Scratch.prototype.showEditMenu = function(b) {
+      var m = new Menu(null, 'More', CSS.topBarColor(), 28);
+      m.addItem('Undelete', this.runtime.undelete, this.runtime.canUndelete());
+      m.addLine();
+      m.addItem('Small stage layout', this.toggleSmallStage, true, this.stageIsContracted);
+      m.addItem('Turbo mode', this.toggleTurboMode, true, this.interp.turboMode);
+      this.addEditMenuItems(b, m);
+      var p = b.localToGlobal(new Point(0, 0));
+      m.showOnStage(stage, b.x, this.topBarPart.bottom() - 1);
+    };
+    Scratch.prototype.addEditMenuItems = function(b, m) {
+      m.addLine();
+      m.addItem('Edit block colors', this.editBlockColors);
+    };
+    Scratch.prototype.editBlockColors = function() {
+      var d = new DialogBox();
+      d.addTitle('Edit Block Colors');
+      d.addWidget(new BlockColorEditor());
+      d.addButton('Close', d.cancel);
+      d.showOnStage(stage, true);
+    };
+    Scratch.prototype.canExportInternals = function() {
+      return false;
+    };
+    Scratch.prototype.showAboutDialog = function() {
+      DialogBox.notify(
+        'Scratch 2.0 ' + Scratch.versionString,
+        '\n\nCopyright © 2012 MIT Media Laboratory' +
+        '\nAll rights reserved.' +
+        '\n\nPlease do not distribute!', stage);
+    };
+    Scratch.prototype.onNewProject = function() {};
+    Scratch.prototype.createNewProjectAndThen = function(callback) {
+      callback = AS3JS.Utils.getDefaultValue(callback, null);
+
+      function clearProject() {
+        this.startNewProject('', '');
+        this.setProjectName('Untitled');
+        this.onNewProject();
+        this.topBarPart.refresh();
+        this.stagePart.refresh();
+        if (callback != null) callback();
+      }
+      this.saveProjectAndThen(clearProject);
+    };
+    Scratch.prototype.createNewProject = function(ignore) {
+      ignore = AS3JS.Utils.getDefaultValue(ignore, null);
+      this.createNewProjectAndThen();
+    };
+    Scratch.prototype.createNewProjectScratchX = function(jsCallback) {
+      this.createNewProjectAndThen(function() {
+        this.externalCallArray(jsCallback);
+      });
+    };
+    Scratch.prototype.saveProjectAndThen = function(postSaveAction) {
+      postSaveAction = AS3JS.Utils.getDefaultValue(postSaveAction, null);
+      // Give the user a chance to save their project, if needed, then call postSaveAction.
+      function doNothing() {}
+
+      function cancel() {
+        d.cancel();
+      }
+
+      function proceedWithoutSaving() {
+        d.cancel();
+        postSaveAction()
+      }
+
+      function save() {
+        d.cancel();
+        this.exportProjectToFile(false, postSaveAction);
+      }
+
+      if (postSaveAction == null) postSaveAction = doNothing;
+      if (!this.saveNeeded) {
+        postSaveAction();
+        return;
+      }
+      var d = new DialogBox();
+      d.addTitle('Save project?');
+      d.addButton('Save', save);
+      d.addButton('Don\'t save', proceedWithoutSaving);
+      d.addButton('Cancel', cancel);
+      d.showOnStage(stage);
+    };
+    Scratch.prototype.exportProjectToFile = function(fromJS, saveCallback) {
+      fromJS = AS3JS.Utils.getDefaultValue(fromJS, false);
+      saveCallback = AS3JS.Utils.getDefaultValue(saveCallback, null);
+
+      function squeakSoundsConverted() {
+        this.scriptsPane.saveScripts(false);
+        var projectType = this.extensionManager.hasExperimentalExtensions() ? '.sbx' : '.sb2';
+        var defaultName = StringUtil.trim(this.projectName());
+        defaultName = ((defaultName.length > 0) ? defaultName : 'project') + projectType;
+        var zipData = projIO.encodeProjectAsZipFile(this.stagePane);
+        var file = new FileReference();
+        file.addEventListener(Event.COMPLETE, fileSaved);
+        file.save(zipData, Scratch.fixFileName(defaultName));
+      }
+
+      function fileSaved(e) {
+        if (!fromJS) this.setProjectName(e.target.name);
+        if (this.isExtensionDevMode) {
+          // Some versions of the editor think of this as an "export" and some think of it as a "save"
+          this.saveNeeded = false;
+        }
+        if (saveCallback != null) saveCallback();
+      }
+
+      if (this.loadInProgress) return;
+      var projIO = new ProjectIO(this);
+      projIO.convertSqueakSounds(this.stagePane, squeakSoundsConverted);
+    };
+    Scratch.prototype.saveSummary = function() {
+      var name = (this.projectName() || "project") + ".txt";
+      var file = new FileReference();
+      file.save(this.stagePane.getSummary(), Scratch.fixFileName(name));
+    };
+    Scratch.prototype.toggleSmallStage = function() {
+      this.setSmallStageMode(!this.stageIsContracted);
+    };
+    Scratch.prototype.toggleTurboMode = function() {
+      this.interp.turboMode = !this.interp.turboMode;
+      this.stagePart.refresh();
+    };
+    Scratch.prototype.handleTool = function(tool, evt) {};
+    Scratch.prototype.showBubble = function(text, x, y, width) {
+      x = AS3JS.Utils.getDefaultValue(x, null);
+      y = AS3JS.Utils.getDefaultValue(y, null);
+      width = AS3JS.Utils.getDefaultValue(width, 0);
+      if (x == null) x = stage.mouseX;
+      if (y == null) y = stage.mouseY;
+      this.gh.showBubble(text, Number(x), Number(y), width);
+    };
+    Scratch.prototype.kGitHashFieldWidth = 7 * 41;
+    Scratch.prototype.makeVersionDetailsDialog = function() {
+      var d = new DialogBox();
+      d.addTitle('Version Details');
+      d.addField('GPU enabled', this.kGitHashFieldWidth, SCRATCH::allow3d);
+      d.addField('scratch-flash', this.kGitHashFieldWidth, SCRATCH::revision);
+      return d;
+    };
+    Scratch.prototype.showVersionDetails = function() {
+      var versionDetailsBox = this.makeVersionDetailsDialog();
+      versionDetailsBox.addButton('OK', versionDetailsBox.accept);
+      versionDetailsBox.showOnStage(stage);
+    };
+    Scratch.prototype.setLanguagePressed = function(b) {
+      function setLanguage(lang) {
+        Translator.setLanguage(lang);
+        this.languageChanged = true;
+      }
+
+      if (Translator.languages.length == 0) return; // empty language list
+      var m = new Menu(setLanguage, 'Language', CSS.topBarColor(), 28);
+      if (b.lastEvent.shiftKey) {
+        m.addItem('import translation file');
+        m.addItem('set font size');
+        m.addLine();
+      }
+      for each(var entry in Translator.languages) {
+        m.addItem(entry[1], entry[0]);
+      }
+      var p = b.localToGlobal(new Point(0, 0));
+      m.showOnStage(stage, b.x, this.topBarPart.bottom() - 1);
+    };
+    Scratch.prototype.startNewProject = function(newOwner, newID) {
+      this.runtime.installNewProject();
+      this.projectOwner = newOwner;
+      this.projectID = newID;
+      this.projectIsPrivate = true;
+    };
+    Scratch.prototype.saveNeeded = false;
+    Scratch.prototype.setSaveNeeded = function(saveNow) {
+      saveNow = AS3JS.Utils.getDefaultValue(saveNow, false);
+      saveNow = false;
+      // Set saveNeeded flag and update the status string.
+      this.saveNeeded = true;
+      if (!this.wasEdited) saveNow = true; // force a save on first change
+      this.clearRevertUndo();
+    };
+    Scratch.prototype.clearSaveNeeded = function() {
+      // Clear saveNeeded flag and update the status string.
+      function twoDigits(n) {
+        return ((n < 10) ? '0' : '') + n
+      }
+
+      this.saveNeeded = false;
+      this.wasEdited = true;
+    };
+    Scratch.prototype.originalProj = null;
+    Scratch.prototype.revertUndo = null;
+    Scratch.prototype.saveForRevert = function(projData, isNew, onServer) {
+      onServer = AS3JS.Utils.getDefaultValue(onServer, false);
+      this.originalProj = projData;
+      this.revertUndo = null;
+    };
+    Scratch.prototype.doRevert = function() {
+      this.runtime.installProjectFromData(this.originalProj, false);
+    };
+    Scratch.prototype.revertToOriginalProject = function() {
+      function preDoRevert() {
+        this.revertUndo = new ProjectIO(Scratch.app).encodeProjectAsZipFile(this.stagePane);
+        this.doRevert();
+      }
+
+      if (!this.originalProj) return;
+      DialogBox.confirm('Throw away all changes since opening this project?', stage, preDoRevert);
+    };
+    Scratch.prototype.undoRevert = function() {
+      if (!this.revertUndo) return;
+      this.runtime.installProjectFromData(this.revertUndo, false);
+      this.revertUndo = null;
+    };
+    Scratch.prototype.canRevert = function() {
+      return this.originalProj != null
+    };
+    Scratch.prototype.canUndoRevert = function() {
+      return this.revertUndo != null
+    };
+    Scratch.prototype.clearRevertUndo = function() {
+      this.revertUndo = null
+    };
+    Scratch.prototype.addNewSprite = function(spr, showImages, atMouse) {
+      showImages = AS3JS.Utils.getDefaultValue(showImages, false);
+      atMouse = AS3JS.Utils.getDefaultValue(atMouse, false);
+      var c, byteCount: int;
+      for each(c in spr.costumes) {
+        if (!c.baseLayerData) c.prepareToSave()
+        byteCount += c.baseLayerData.length;
+      }
+      if (!this.okayToAdd(byteCount)) return; // not enough room
+      spr.objName = this.stagePane.unusedSpriteName(spr.objName);
+      spr.indexInLibrary = 1000000; // add at end of library
+      spr.setScratchXY(int(200 * Math.random() - 100), int(100 * Math.random() - 50));
+      if (atMouse) spr.setScratchXY(this.stagePane.scratchMouseX(), this.stagePane.scratchMouseY());
+      this.stagePane.addChild(spr);
+      spr.updateCostume();
+      this.selectSprite(spr);
+      this.setTab(showImages ? 'images' : 'scripts');
+      this.setSaveNeeded(true);
+      this.libraryPart.refresh();
+      for each(c in spr.costumes) {
+        if (ScratchCostume.isSVGData(c.baseLayerData)) c.setSVGData(c.baseLayerData, false);
+      }
+    };
+    Scratch.prototype.addSound = function(snd, targetObj) {
+      targetObj = AS3JS.Utils.getDefaultValue(targetObj, null);
+      if (snd.soundData && !this.okayToAdd(snd.soundData.length)) return; // not enough room
+      if (!targetObj) targetObj = this.viewedObj();
+      snd.soundName = targetObj.unusedSoundName(snd.soundName);
+      targetObj.sounds.push(snd);
+      this.setSaveNeeded(true);
+      if (targetObj == this.viewedObj()) {
+        this.soundsPart.selectSound(snd);
+        this.setTab('sounds');
+      }
+    };
+    Scratch.prototype.addCostume = function(c, targetObj) {
+      targetObj = AS3JS.Utils.getDefaultValue(targetObj, null);
+      if (!c.baseLayerData) c.prepareToSave();
+      if (!this.okayToAdd(c.baseLayerData.length)) return; // not enough room
+      if (!targetObj) targetObj = this.viewedObj();
+      c.costumeName = targetObj.unusedCostumeName(c.costumeName);
+      targetObj.costumes.push(c);
+      targetObj.showCostumeNamed(c.costumeName);
+      this.setSaveNeeded(true);
+      if (targetObj == this.viewedObj()) this.setTab('images');
+    };
+    Scratch.prototype.okayToAdd = function(newAssetBytes) {
+      // Return true if there is room to add an asset of the given size.
+      // Otherwise, return false and display a warning dialog.
+      var assetByteLimit = 50 * 1024 * 1024; // 50 megabytes
+      var assetByteCount = newAssetBytes;
+      for each(var obj in this.stagePane.allObjects()) {
+        for each(var c in obj.costumes) {
+          if (!c.baseLayerData) c.prepareToSave();
+          assetByteCount += c.baseLayerData.length;
+        }
+        for each(var snd in obj.sounds) assetByteCount += snd.soundData.length;
+      }
+      if (assetByteCount > assetByteLimit) {
+        var overBy = Math.max(1, (assetByteCount - assetByteLimit) / 1024);
+        DialogBox.notify(
+          'Sorry!',
+          'Adding that media asset would put this project over the size limit by ' + overBy + ' KB\n' +
+          'Please remove some costumes, backdrops, or sounds before adding additional media.',
+          stage);
+        return false;
+      }
+      return true;
+    };
+    Scratch.prototype.flashSprite = function(spr) {
+      function doFade(alpha) {
+        box.alpha = alpha
+      }
+
+      function deleteBox() {
+        if (box.parent) {
+          box.parent.removeChild(box)
+        }
+      }
+
+      var r = spr.getVisibleBounds(this);
+      var box = new Shape();
+      box.graphics.lineStyle(3, CSS.overColor, 1, true);
+      box.graphics.beginFill(0x808080);
+      box.graphics.drawRoundRect(0, 0, r.width, r.height, 12, 12);
+      box.x = r.x;
+      box.y = r.y;
+      addChild(box);
+      Transition.cubic(doFade, 1, 0, 0.5, deleteBox);
+    };
+    Scratch.prototype.addLoadProgressBox = function(title) {
+      this.removeLoadProgressBox();
+      this.lp = new LoadProgress();
+      this.lp.setTitle(title);
+      stage.addChild(this.lp);
+      this.fixLoadProgressLayout();
+    };
+    Scratch.prototype.removeLoadProgressBox = function() {
+      if (this.lp && this.lp.parent) this.lp.parent.removeChild(this.lp);
+      this.lp = null;
+    };
+    Scratch.prototype.fixLoadProgressLayout = function() {
+      if (!this.lp) return;
+      var p = this.stagePane.localToGlobal(new Point(0, 0));
+      this.lp.scaleX = this.stagePane.scaleX;
+      this.lp.scaleY = this.stagePane.scaleY;
+      this.lp.x = int(p.x + ((this.stagePane.width - this.lp.width) / 2));
+      this.lp.y = int(p.y + ((this.stagePane.height - this.lp.height) / 2));
+    };
+    Scratch.prototype.openCameraDialog = function(savePhoto) {
+      this.closeCameraDialog();
+      this.cameraDialog = new CameraDialog(savePhoto);
+      this.cameraDialog.fixLayout();
+      this.cameraDialog.x = (stage.stageWidth - this.cameraDialog.width) / 2;
+      this.cameraDialog.y = (stage.stageHeight - this.cameraDialog.height) / 2;
+      addChild(this.cameraDialog);
+    };
+    Scratch.prototype.closeCameraDialog = function() {
+      if (this.cameraDialog) {
+        this.cameraDialog.closeDialog();
+        this.cameraDialog = null;
+      }
+    };
+    Scratch.prototype.createMediaInfo = function(obj, owningObj) {
+      owningObj = AS3JS.Utils.getDefaultValue(owningObj, null);
+      return new MediaInfo(obj, owningObj);
+    };
+    Scratch.prototype.externalInterfaceAvailable = function() {
+      return ExternalInterface.available;
+    };
+    Scratch.prototype.externalCall = function(functionName, returnValueCallback, args) {
+      returnValueCallback = AS3JS.Utils.getDefaultValue(returnValueCallback, null);
+      args.unshift(functionName);
+      var retVal;
+      try {
+        retVal = ExternalInterface.call.apply(ExternalInterface, args);
+      } catch (e: Error) {
+        this.logException(e);
+        // fall through to below
+      }
+      if (returnValueCallback != null) {
+        returnValueCallback(retVal);
+      }
+    };
+    Scratch.prototype.addExternalCallback = function(functionName, closure) {
+      ExternalInterface.addCallback(functionName, closure);
+    };
+    Scratch.prototype.externalCallArray = function(jsCallbackArray, returnValueCallback) {
+      returnValueCallback = AS3JS.Utils.getDefaultValue(returnValueCallback, null);
+      var args = jsCallbackArray.concat(); // clone
+      args.splice(1, 0, returnValueCallback);
+      this.externalCall.apply(this, args);
+    }
+
+    module.exports = Scratch;
+  };
+  if (typeof module !== 'undefined') {
+    module.exports = AS3JS.load({
+      program: Program,
+      entry: "Scratch",
+      entryMode: "instance"
+    });
+  } else if (typeof window !== 'undefined' && typeof AS3JS !== 'undefined') {
+    window['Scratch'] = AS3JS.load({
+      program: Program,
+      entry: "Scratch",
+      entryMode: "instance"
+    });
+  }
+})();
