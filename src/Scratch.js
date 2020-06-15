@@ -399,8 +399,8 @@ class Scratch extends Sprite {
 	}
 
 	uncaughtErrorHandler(event) {
-		if (event.error is Error) {
-			var error:Error = event.error as Error;
+		if (event.error == Error) {
+			var error = new Error(event.error);
 			logException(error);
 		}
 		else if (event.error is ErrorEvent) {
