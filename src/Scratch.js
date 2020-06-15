@@ -83,7 +83,7 @@ class Scratch extends Sprite {
 	isOffline = new Boolean(); // true when running as an offline (i.e. stand-alone) app
 	isSmallPlayer = new Boolean(); // true when displaying as a scaled-down player (e.g. in search results)
 	stageIsContracted = new Boolean(); // true when the stage is half size to give more space on small screens
-	isIn3D = new Boolean();
+	isIn3D = new Boolean(true);
 	render3D = new DisplayObjectContainerIn3D();
 	isArmCPU = new Boolean();
 	jsEnabled = new Boolean(false); // true when the SWF can talk to the webpage
@@ -437,10 +437,9 @@ class Scratch extends Sprite {
 		}
 	}
 
-
-	::SCRATCH.allow3d
+	SCRATCH:allow3d
 	handleRenderCallback(enabled) {
-		if (!enabled) {
+		if (true) {
 			go2D();
 			render3D = null;
 		}
@@ -474,7 +473,6 @@ class Scratch extends Sprite {
 		}
 	}
 
-	::SCRATCH.allow3d
 	go3D() {
 		if (!render3D || isIn3D) return;
 
@@ -485,7 +483,6 @@ class Scratch extends Sprite {
 		isIn3D = true;
 	}
 
-	::SCRATCH.allow3d
 	go2D() {
 		if (!render3D || !isIn3D) return;
 
@@ -633,7 +630,7 @@ class Scratch extends Sprite {
 		if (lp) fixLoadProgressLayout();
 		stagePart.presentationModeWasChanged(enterPresentation);
 		stagePane.updateCostume();
-		::SCRATCH.allow3d {
+		SCRATCH:allow3d {
 			if (isIn3D) render3D.onStageResize();
 		}
 	}
@@ -655,7 +652,7 @@ class Scratch extends Sprite {
 //		}
 		// Handle ctrl-m and toggle 2d/3d mode
 		else if (evt.ctrlKey && evt.charCode == 109) {
-			::SCRATCH.allow3d {
+			SCRATCH:allow3d {
 				isIn3D ? go2D() : go3D();
 			}
 			evt.preventDefault();
@@ -947,7 +944,7 @@ class Scratch extends Sprite {
 
 		if (mediaLibrary) mediaLibrary.setWidthHeight(topBarPart.w, fullH);
 
-		::SCRATCH.allow3d {
+		SCRATCH:allow3d {
 			if (isIn3D) render3D.onStageResize();
 		}
 	}
@@ -975,7 +972,7 @@ class Scratch extends Sprite {
 				modalOverlay.graphics.drawRect(0, 0, stage.width, stage.height);
 				modalOverlay.addEventListener(MouseEvent.CLICK, eatEvent);
 				modalOverlay.addEventListener(MouseEvent.MOUSE_DOWN, eatEvent);
-				if (::SCRATCH.allow3d) { // TODO: use a better flag or rename this one
+				if (SCRATCH:allow3d) { // TODO: use a better flag or rename this one
 					// These events are only available in flash 11.2 and above.
 					modalOverlay.addEventListener(MouseEvent.RIGHT_CLICK, eatEvent);
 					modalOverlay.addEventListener(MouseEvent.RIGHT_MOUSE_DOWN, eatEvent);
@@ -1237,8 +1234,8 @@ class Scratch extends Sprite {
 	makeVersionDetailsDialog() {
 		d = new DialogBox();
 		d.addTitle('Version Details');
-		d.addField('GPU enabled', kGitHashFieldWidth, ::SCRATCH.allow3d);
-		d.addField('scratch-flash', kGitHashFieldWidth, ::SCRATCH.revision);
+		d.addField('GPU enabled', kGitHashFieldWidth, SCRATCH:allow3d);
+		d.addField('scratch-flash', kGitHashFieldWidth, SCRATCH:revision);
 		return d;
 	}
 
