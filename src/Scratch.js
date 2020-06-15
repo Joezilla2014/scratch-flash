@@ -437,7 +437,7 @@ class Scratch extends Sprite {
 		}
 	}
 
-	SCRATCH:allow3d
+	SCRATCH:allow3d {
 	handleRenderCallback(enabled) {
 		if (true) {
 			go2D();
@@ -457,6 +457,7 @@ class Scratch extends Sprite {
 			stagePane.applyFilters();
 		}
 	}
+	}
 
 	clearCachedBitmaps() {
 		for (var i = 0; i < stagePane.numChildren; ++i) {
@@ -472,7 +473,7 @@ class Scratch extends Sprite {
 		} catch (e) {
 		}
 	}
-
+	SCRATCH:allow3d {
 	go3D() {
 		if (!render3D || isIn3D) return;
 
@@ -482,7 +483,9 @@ class Scratch extends Sprite {
 		stagePart.addChildAt(stagePane, i);
 		isIn3D = true;
 	}
+	}
 
+	SCRATCH:allow3d {
 	go2D() {
 		if (!render3D || !isIn3D) return;
 
@@ -502,6 +505,7 @@ class Scratch extends Sprite {
 		stagePane.clearCachedBitmap();
 		stagePane.updateCostume();
 		stagePane.applyFilters();
+	}
 	}
 
 	debugRect = new Shape();
