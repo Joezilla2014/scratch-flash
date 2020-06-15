@@ -403,8 +403,8 @@ class Scratch extends Sprite {
 			var error = new Error(event.error);
 			logException(error);
 		}
-		else if (event.error is ErrorEvent) {
-			var errorEvent:ErrorEvent = event.error as ErrorEvent;
+		else if (event.error == ErrorEvent) {
+			var errorEvent = new ErrorEvent(event.error);
 			log(LogLevel.ERROR, errorEvent.toString());
 		}
 	}
