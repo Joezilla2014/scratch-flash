@@ -1261,7 +1261,8 @@ import './watchers/ListWatcher.js';
     Scratch.prototype.addNewSprite = function(spr, showImages, atMouse) {
       showImages = AS3JS.Utils.getDefaultValue(showImages, false);
       atMouse = AS3JS.Utils.getDefaultValue(atMouse, false);
-      var c, byteCount: int;
+      var c;
+      var bytecount = new Int(0);
       for (c of spr.costumes) {
         if (!c.baseLayerData) c.prepareToSave()
         byteCount += c.baseLayerData.length;
