@@ -437,9 +437,8 @@ class Scratch extends Sprite {
 		}
 	}
 
-	SCRATCH:allow3d {
 	handleRenderCallback(enabled) {
-		if (true) {
+		if (isIn3D) {
 			go2D();
 			render3D = null;
 		}
@@ -457,7 +456,6 @@ class Scratch extends Sprite {
 			stagePane.applyFilters();
 		}
 	}
-	}
 
 	clearCachedBitmaps() {
 		for (var i = 0; i < stagePane.numChildren; ++i) {
@@ -473,9 +471,8 @@ class Scratch extends Sprite {
 		} catch (e) {
 		}
 	}
-	SCRATCH:allow3d {
 	go3D() {
-		if (!render3D || isIn3D) return;
+		if (isIn3D) return;
 
 		var i = stagePart.getChildIndex(stagePane);
 		stagePart.removeChild(stagePane);
@@ -485,9 +482,8 @@ class Scratch extends Sprite {
 	}
 	}
 
-	SCRATCH:allow3d {
 	go2D() {
-		if (!render3D || !isIn3D) return;
+		if (isIn3D) return;
 
 		var i = stagePart.getChildIndex(stagePane);
 		stagePart.removeChild(stagePane);
@@ -505,7 +501,6 @@ class Scratch extends Sprite {
 		stagePane.clearCachedBitmap();
 		stagePane.updateCostume();
 		stagePane.applyFilters();
-	}
 	}
 
 	debugRect = new Shape();
@@ -634,9 +629,7 @@ class Scratch extends Sprite {
 		if (lp) fixLoadProgressLayout();
 		stagePart.presentationModeWasChanged(enterPresentation);
 		stagePane.updateCostume();
-		SCRATCH:allow3d {
 			if (isIn3D) render3D.onStageResize();
-		}
 	}
 
 	keyDown(evt) {
@@ -656,9 +649,7 @@ class Scratch extends Sprite {
 //		}
 		// Handle ctrl-m and toggle 2d/3d mode
 		else if (evt.ctrlKey && evt.charCode == 109) {
-			SCRATCH:allow3d {
 				isIn3D ? go2D() : go3D();
-			}
 			evt.preventDefault();
 			evt.stopImmediatePropagation();
 		}
@@ -948,9 +939,7 @@ class Scratch extends Sprite {
 
 		if (mediaLibrary) mediaLibrary.setWidthHeight(topBarPart.w, fullH);
 
-		SCRATCH:allow3d {
 			if (isIn3D) render3D.onStageResize();
-		}
 	}
 
 	drawBG() {
@@ -976,7 +965,7 @@ class Scratch extends Sprite {
 				modalOverlay.graphics.drawRect(0, 0, stage.width, stage.height);
 				modalOverlay.addEventListener(MouseEvent.CLICK, eatEvent);
 				modalOverlay.addEventListener(MouseEvent.MOUSE_DOWN, eatEvent);
-				if (SCRATCH:allow3d) { // TODO: use a better flag or rename this one
+				if (isIn3D) { // TODO: use a better flag or rename this one
 					// These events are only available in flash 11.2 and above.
 					modalOverlay.addEventListener(MouseEvent.RIGHT_CLICK, eatEvent);
 					modalOverlay.addEventListener(MouseEvent.RIGHT_MOUSE_DOWN, eatEvent);
