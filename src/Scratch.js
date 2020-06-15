@@ -1400,7 +1400,7 @@ import './watchers/ListWatcher.js';
       var retVal;
       try {
         retVal = ExternalInterface.call.apply(ExternalInterface, args);
-      } catch (e: Error) {
+      } catch (e) {
         this.logException(e);
         // fall through to below
       }
