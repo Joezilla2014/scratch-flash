@@ -440,10 +440,10 @@ import './watchers/ListWatcher.js';
       return new PaletteBuilder(this);
     };
     Scratch.prototype.uncaughtErrorHandler = function(event) {
-      if (event.error is Error) {
+      if (event.error == Error) {
         var error = new Error(event.error);
         this.logException(error);
-      } else if (event.error is ErrorEvent) {
+      } else if (event.error == ErrorEvent) {
         var errorEvent = new ErrorEvent(event.error);
         this.log(LogLevel.ERROR, errorEvent.toString());
       }
