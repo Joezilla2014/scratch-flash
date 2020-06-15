@@ -327,7 +327,7 @@ class Scratch extends Sprite {
 	}
 
 	loadBase64SBX(base64) {
-		var sbxData:ByteArray = Base64Encoder.decode(base64);
+		var sbxData = new ByteArray(Base64Encoder.decode(base64));
 		app.setProjectName('');
 		runtime.installProjectFromData(sbxData);
 	}
