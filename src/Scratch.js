@@ -121,7 +121,7 @@ import './watchers/ListWatcher.js';
       try {
         // Ignore the exception that happens when you call browse() with the file browser open
         fileList.browse(filter != null ? [filter] : null);
-      } catch (e: * ) {}
+      } catch (e) {}
     };
 
     Scratch.$cinit = function() {
@@ -217,7 +217,7 @@ import './watchers/ListWatcher.js';
         try {
           this.externalCall('function(){return true;}', this.jsAccessDetermined);
           return; // wait for callback
-        } catch (e: Error) {}
+        } catch (e) {}
       }
       this.jsAccessDetermined(false);
     };
