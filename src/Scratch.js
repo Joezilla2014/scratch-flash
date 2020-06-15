@@ -352,7 +352,7 @@ import './watchers/ListWatcher.js';
       if (!this.isExtensionDevMode) return;
 
       var url;
-      var urlArray = urlOrArray as Array;
+      var urlArray = new Array(urlOrArray);
       if (urlArray) {
         var urlCount = urlArray.length;
         var extensionURLs = [];
@@ -383,7 +383,7 @@ import './watchers/ListWatcher.js';
           this.externalCall('JSshowWarning');
         }
       } else {
-        url = urlOrArray as String;
+        url = new String(urlOrArray);
         this.loadSingleGithubURL(url);
         this.externalCall('JSshowWarning');
       }
@@ -441,10 +441,10 @@ import './watchers/ListWatcher.js';
     };
     Scratch.prototype.uncaughtErrorHandler = function(event) {
       if (event.error is Error) {
-        var error = event.error as Error;
+        var error = new Error(event.error);
         this.logException(error);
       } else if (event.error is ErrorEvent) {
-        var errorEvent = event.error as ErrorEvent;
+        var errorEvent = new ErrorEvent(event.error);
         this.log(LogLevel.ERROR, errorEvent.toString());
       }
     };
@@ -493,7 +493,7 @@ import './watchers/ListWatcher.js';
         this.render3D = null;
       } else {
         for (var i = 0; i < this.stagePane.numChildren; ++i) {
-          var spr = (this.stagePane.getChildAt(i) as ScratchSprite);
+          var spr = (new ScratchSprite(this.stagePane.getChildAt(i)));
           if (spr) {
             spr.clearCachedBitmap();
             spr.updateCostume();
@@ -507,7 +507,7 @@ import './watchers/ListWatcher.js';
     };
     Scratch.prototype.clearCachedBitmaps = function() {
       for (var i = 0; i < this.stagePane.numChildren; ++i) {
-        var spr = (this.stagePane.getChildAt(i) as ScratchSprite);
+        var spr = (new ScratchSprite(this.stagePane.getChildAt(i)));
         if (spr) spr.clearCachedBitmap();
       }
       this.stagePane.clearCachedBitmap();
@@ -536,7 +536,7 @@ import './watchers/ListWatcher.js';
       this.stagePart.addChildAt(this.stagePane, i);
       this.isIn3D = false;
       for (i = 0; i < this.stagePane.numChildren; ++i) {
-        var spr = (this.stagePane.getChildAt(i) as ScratchSprite);
+        var spr = (new ScratchSprite(this.stagePane.getChildAt(i)));
         if (spr) {
           spr.clearCachedBitmap();
           spr.updateCostume();
@@ -981,7 +981,7 @@ import './watchers/ListWatcher.js';
       }
       var uiLayer = Scratch.app.stagePane.getUILayer();
       for (var i = 0; i < uiLayer.numChildren; ++i) {
-        var lw = uiLayer.getChildAt(i) as ListWatcher;
+        var lw = new ListWatcher(uiLayer.getChildAt(i));
         if (lw) lw.updateTranslation();
       }
       this.topBarPart.updateTranslation();
