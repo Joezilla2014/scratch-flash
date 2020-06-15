@@ -320,7 +320,7 @@ class Scratch extends Sprite {
 			}
 		}
 		else {
-			url = string urlOrArray;
+			url = new String(urlOrArray);
 			loadSingleGithubURL(url);
 			externalCall('JSshowWarning');
 		}
