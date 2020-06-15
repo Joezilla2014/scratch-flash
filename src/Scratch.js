@@ -471,7 +471,6 @@ import './watchers/ListWatcher.js';
       }
     };
     Scratch.prototype.checkFlashVersion = function() {
-      SCRATCH::allow3d {
         if (Capabilities.playerType != "Desktop" || Capabilities.version.indexOf('IOS') === 0) {
           var versionString = Capabilities.version.substr(Capabilities.version.indexOf(' ') + 1);
           var versionParts = versionString.split(',');
@@ -482,7 +481,6 @@ import './watchers/ListWatcher.js';
             this.render3D.setStatusCallback(this.handleRenderCallback);
             return;
           }
-        }
       }
 
       this.render3D = null;
