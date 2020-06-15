@@ -514,7 +514,7 @@ import './watchers/ListWatcher.js';
       try {
         new LocalConnection().connect('foo');
         new LocalConnection().connect('foo');
-      } catch (e: Error) {}
+      } catch (e) {}
     };
     Scratch.prototype.go3D = function() {
       if (!this.render3D || this.isIn3D) return;
