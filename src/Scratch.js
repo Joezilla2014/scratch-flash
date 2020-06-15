@@ -645,9 +645,7 @@ import './watchers/ListWatcher.js';
       if (this.lp) this.fixLoadProgressLayout();
       this.stagePart.presentationModeWasChanged(enterPresentation);
       this.stagePane.updateCostume();
-      SCRATCH::allow3d {
         if (this.isIn3D) this.render3D.onStageResize();
-      }
     };
     Scratch.prototype.keyDown = function(evt) {
       // Escape stops drag operations
@@ -666,9 +664,7 @@ import './watchers/ListWatcher.js';
       //    }
       // Handle ctrl-m and toggle 2d/3d mode
       else if (evt.ctrlKey && evt.charCode == 109) {
-        SCRATCH::allow3d {
           this.isIn3D ? this.go2D() : this.go3D();
-        }
         evt.preventDefault();
         evt.stopImmediatePropagation();
       } else {
@@ -927,9 +923,7 @@ import './watchers/ListWatcher.js';
 
       if (this.mediaLibrary) this.mediaLibrary.setWidthHeight(this.topBarPart.w, fullH);
 
-      SCRATCH::allow3d {
         if (this.isIn3D) this.render3D.onStageResize();
-      }
     };
     Scratch.prototype.drawBG = function() {
       var g = this.playerBG.graphics;
@@ -952,7 +946,7 @@ import './watchers/ListWatcher.js';
           this.modalOverlay.graphics.drawRect(0, 0, stage.width, stage.height);
           this.modalOverlay.addEventListener(MouseEvent.CLICK, eatEvent);
           this.modalOverlay.addEventListener(MouseEvent.MOUSE_DOWN, eatEvent);
-          if (SCRATCH::allow3d) { // TODO: use a better flag or rename this one
+          if (isIn3d) { // TODO: use a better flag or rename this one
             // These events are only available in flash 11.2 and above.
             this.modalOverlay.addEventListener(MouseEvent.RIGHT_CLICK, eatEvent);
             this.modalOverlay.addEventListener(MouseEvent.RIGHT_MOUSE_DOWN, eatEvent);
@@ -1179,8 +1173,8 @@ import './watchers/ListWatcher.js';
     Scratch.prototype.makeVersionDetailsDialog = function() {
       var d = new DialogBox();
       d.addTitle('Version Details');
-      d.addField('GPU enabled', this.kGitHashFieldWidth, SCRATCH::allow3d);
-      d.addField('scratch-flash', this.kGitHashFieldWidth, SCRATCH::revision);
+      d.addField('GPU enabled', this.kGitHashFieldWidth, isIn3d);
+  //    d.addField('scratch-flash', this.kGitHashFieldWidth, SCRATCH::revision);
       return d;
     };
     Scratch.prototype.showVersionDetails = function() {
