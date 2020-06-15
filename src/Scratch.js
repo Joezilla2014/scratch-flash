@@ -640,7 +640,7 @@ import './watchers/ListWatcher.js';
       if (this.isOffline) {
         stage.displayState = enterPresentation ? StageDisplayState.FULL_SCREEN_INTERACTIVE : StageDisplayState.NORMAL;
       }
-      for each(var o in this.stagePane.allObjects()) o.applyFilters();
+      for each(var o in this.stagePane.allObjects()) { o.applyFilters() };
 
       if (this.lp) this.fixLoadProgressLayout();
       this.stagePart.presentationModeWasChanged(enterPresentation);
