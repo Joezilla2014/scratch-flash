@@ -21,7 +21,7 @@
 // John Maloney, September 2009
 //
 // This is the top-level application.
-
+//import './util/phaser.min.js';
 import './blocks/*';
 
 import './blocks/StringUtil.js';
@@ -29,11 +29,11 @@ import './blocks/StringUtil.js';
 import './extensions/ExtensionDevManager.js';
 import './extensions/ExtensionManager.js';
 
-import '.../phaser/src/display/index.js';
-import '.../phaser/src/events/index.js';
+//import '.../phaser/src/display/index.js';
+//import '.../phaser/src/events/index.js';
 //import flash.external.ExternalInterface;
-import '.../phaser/src/geom/point/index.js';
-import '.../phaser/src/geom/rectangle/index.js';
+//import '.../phaser/src/geom/point/index.js';
+//import '.../phaser/src/geom/rectangle/index.js';
 //import flash.net.FileFilter;
 //import flash.net.FileReference;
 //import flash.net.FileReferenceList;
@@ -44,7 +44,7 @@ import '.../phaser/src/geom/rectangle/index.js';
 //import flash.net.URLRequest;
 //import flash.system.*;
 //import flash.text.*;
-import '.../phaser/src/utils/index.js';
+//import '.../phaser/src/utils/index.js';
 
 import './interpreter/*';
 
