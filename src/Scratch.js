@@ -21,15 +21,12 @@
 // John Maloney, September 2009
 //
 // This is the top-level application.
-//import './util/phaser.min.js';
 import './blocks/*';
-
-import './blocks/StringUtil.js';
 
 import './extensions/ExtensionDevManager.js';
 import './extensions/ExtensionManager.js';
 
-//import '.../phaser/src/display/index.js';
+import * from './phaser.min.js';
 //import '.../phaser/src/events/index.js';
 //import flash.external.ExternalInterface;
 //import '.../phaser/src/geom/point/index.js';
